@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import Navbar from './sections/Navbar';
 import Hero from './sections/Hero';
+import MarketTicker from './components/MarketTicker';
 import Stats from './sections/Stats';
 import About from './sections/About';
 import Traders from './sections/Traders';
@@ -57,6 +58,7 @@ function HomePage() {
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
       <Navbar />
+      <MarketTicker />
       <main>
         <Hero />
         <Stats />
