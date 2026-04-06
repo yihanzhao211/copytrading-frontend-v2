@@ -1,0 +1,526 @@
+import { useState, useEffect } from 'react';
+import { 
+  Wallet, TrendingUp, Users, Activity, 
+  Settings, Pause, Play, X,
+  Clock, ArrowLeft, LogOut, Key,
+  Loader2
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import MarketTicker from '../components/MarketTicker';
+import BindApiModal from '../components/BindApiModal';
+import { api } from '../lib/api';
+
+// API Response Types
+interface Trader {
+  id: number;
+  name: string;
+  avatar?: string;
+}
+
+interface FollowRelation {
+  id: number;
+  trader: Trader;
+  copy_mode: 'fixed' | 'ratio';
+  copy_ratio: number;
+  fixed_amount: number;
+  total_invested: number;
+  current_profit: number;
+  profit_percent: number;
+  active_positions: number;
+  is_active: boolean;
+  last_trade: string;
+  created_at: string;
+}
+
+interface Order {
+  id: number;
+  trader_name: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  amount: string;
+  pnl: number;
+  created_at: string;
+}
+
+// UI Types
+interface FollowingTrader {
+  id: number;
+  name: string;
+  avatar: string;
+  copyMode: 'fixed' | 'ratio';
+  copyRatio: number;
+  fixedAmount: number;
+  totalInvested: number;
+  currentProfit: number;
+  profitPercent: number;
+  activePositions: number;
+  isActive: boolean;
+  lastTrade: string;
+}
+
+interface TradeHistory {
+  time: string;
+  trader: string;
+  pair: string;
+  side: 'buy' | 'sell';
+  amount: string;
+  pnl: number;
+}
+
+// Transform API data to UI format
+function transformFollowRelation(relation: FollowRelation): FollowingTrader {
+  return {
+    id: relation.id,
+    name: relation.trader.name,
+    avatar: relation.trader.avatar || relation.trader.name[0],
+    copyMode: relation.copy_mode,
+    copyRatio: relation.copy_ratio,
+    fixedAmount: relation.fixed_amount,
+    totalInvested: relation.total_invested,
+    currentProfit: relation.current_profit,
+    profitPercent: relation.profit_percent,
+    activePositions: relation.active_positions,
+    isActive: relation.is_active,
+    lastTrade: relation.last_trade,
+  };
+}
+
+function transformOrder(order: Order): TradeHistory {
+  return {
+    time: new Date(order.created_at).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
+    trader: order.trader_name,
+    pair: order.symbol,
+    side: order.side,
+    amount: order.amount,
+    pnl: order.pnl,
+  };
+}
+
+export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'following' | 'history'>('overview');
+  const [followingList, setFollowingList] = useState<FollowingTrader[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<TradeHistory[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showBindApi, setShowBindApi] = useState(false);
+  const { user, logout } = useAuth();
+
+  // Fetch following list
+  useEffect(() => {
+    async function fetchFollowing() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await api.follow.list();
+        const transformed = (data || []).map(transformFollowRelation);
+        setFollowingList(transformed);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '获取跟单列表失败');
+        console.error('Failed to fetch following:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFollowing();
+  }, []);
+
+  // Fetch trade history when history tab is active
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+
+    async function fetchHistory() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await api.orders.list();
+        const transformed = (data || []).map(transformOrder);
+        setTradeHistory(transformed);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '获取交易历史失败');
+        console.error('Failed to fetch trade history:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchHistory();
+  }, [activeTab]);
+
+  const toggleTrader = (id: number) => {
+    setFollowingList(prev => prev.map(trader => 
+      trader.id === id ? { ...trader, isActive: !trader.isActive } : trader
+    ));
+  };
+
+  const removeTrader = (id: number) => {
+    if (confirm('确定要停止跟单这位交易员吗？已开仓位将保持。')) {
+      setFollowingList(prev => prev.filter(trader => trader.id !== id));
+    }
+  };
+
+  const totalInvested = followingList.reduce((sum, t) => sum + t.totalInvested, 0);
+  const totalProfit = followingList.reduce((sum, t) => sum + t.currentProfit, 0);
+  const totalProfitPercent = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+
+  const handleRetry = () => {
+    if (activeTab === 'history') {
+      setActiveTab('overview');
+      setTimeout(() => setActiveTab('history'), 0);
+    } else {
+      window.location.reload();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-black pt-24 pb-12">
+      {/* 导航栏 */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <button 
+              onClick={() => { window.location.hash = ''; window.location.reload(); }}
+              className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft size={18} />
+              返回首页
+            </button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-black font-bold text-sm">
+                  {user?.name?.[0] || 'U'}
+                </div>
+                <span className="text-white font-medium hidden sm:block">{user?.name || '用户'}</span>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  window.location.hash = '';
+                  window.location.reload();
+                }}
+                className="p-2 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="退出登录"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* 页面标题 */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">我的仪表盘</h1>
+          <p className="text-neutral-400 mt-2">管理您的跟单交易和投资组合</p>
+        </div>
+
+        {/* 实时行情 */}
+        <div className="mb-8">
+          <MarketTicker />
+        </div>
+
+        {/* 标签切换 */}
+        <div className="flex gap-2 mb-8 p-1 bg-white/5 rounded-xl w-fit">
+          {[
+            { key: 'overview', label: '总览', icon: Activity },
+            { key: 'following', label: '我的跟单', icon: Users },
+            { key: 'history', label: '交易历史', icon: Clock },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === key 
+                  ? 'bg-cyan-500 text-black' 
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* 错误提示 */}
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-red-400 font-medium">加载失败</p>
+                <p className="text-red-300/80 text-sm mt-1">{error}</p>
+              </div>
+              <button
+                onClick={handleRetry}
+                className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm"
+              >
+                重试
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 加载状态 */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+            <span className="ml-3 text-neutral-400">加载中...</span>
+          </div>
+        )}
+
+        {activeTab === 'overview' && !loading && (
+          <>
+            {/* 资产总览卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="card-dark p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                    <Wallet size={20} className="text-cyan-400" />
+                  </div>
+                  <span className="text-neutral-400">总资产</span>
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  ${(totalInvested + totalProfit).toLocaleString()}
+                </p>
+                <p className="text-sm text-neutral-500 mt-1">
+                  本金: ${totalInvested.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="card-dark p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <TrendingUp size={20} className="text-green-400" />
+                  </div>
+                  <span className="text-neutral-400">累计收益</span>
+                </div>
+                <p className={`text-3xl font-bold ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString()}
+                </p>
+                <p className={`text-sm mt-1 ${totalProfitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {totalProfitPercent >= 0 ? '+' : ''}{totalProfitPercent.toFixed(2)}%
+                </p>
+              </div>
+
+              <div className="card-dark p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <Users size={20} className="text-purple-400" />
+                  </div>
+                  <span className="text-neutral-400">跟随交易员</span>
+                </div>
+                <p className="text-3xl font-bold text-white">{followingList.length}</p>
+                <p className="text-sm text-neutral-500 mt-1">
+                  {followingList.filter(t => t.isActive).length} 位活跃中
+                </p>
+              </div>
+            </div>
+
+            {/* 今日数据 */}
+            <div className="card-dark p-6 mb-8">
+              <h3 className="text-lg font-semibold text-white mb-6">今日数据</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div>
+                  <p className="text-neutral-400 text-sm mb-1">今日盈亏</p>
+                  <p className="text-xl font-bold text-green-400">+$128.50</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 text-sm mb-1">今日收益率</p>
+                  <p className="text-xl font-bold text-green-400">+2.14%</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 text-sm mb-1">成交笔数</p>
+                  <p className="text-xl font-bold text-white">8</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 text-sm mb-1">当前持仓</p>
+                  <p className="text-xl font-bold text-white">5</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 币安API绑定 */}
+            <div className="card-dark p-6 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Key className="w-5 h-5 text-cyan-400" />
+                    币安API绑定
+                  </h3>
+                  <p className="text-neutral-400 text-sm">绑定您的币安API以开始自动跟单交易</p>
+                </div>
+                <button
+                  onClick={() => setShowBindApi(true)}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-medium hover:bg-cyan-400 transition-colors flex items-center gap-2"
+                >
+                  <Key size={18} />
+                  绑定API
+                </button>
+              </div>
+            </div>
+
+            {/* 收益曲线占位 */}
+            <div className="card-dark p-6">
+              <h3 className="text-lg font-semibold text-white mb-6">收益曲线</h3>
+              <div className="h-64 flex items-center justify-center text-neutral-500">
+                [收益图表区域 - 可接入 Recharts 实现]
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'following' && !loading && (
+          <div className="space-y-4">
+            {followingList.length === 0 ? (
+              <div className="card-dark p-12 text-center">
+                <Users size={48} className="text-neutral-600 mx-auto mb-4" />
+                <p className="text-neutral-400">您还没有跟随任何交易员</p>
+                <button 
+                  onClick={() => document.querySelector('#traders')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="btn-primary mt-4"
+                >
+                  去挑选交易员
+                </button>
+              </div>
+            ) : (
+              followingList.map(trader => (
+                <div key={trader.id} className="card-dark p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* 交易员信息 */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-black font-bold">
+                        {trader.avatar}
+                      </div>
+                      <div>
+                        <h4 className="text-white font-medium">{trader.name}</h4>
+                        <div className="flex items-center gap-2 text-sm text-neutral-400 mt-1">
+                          <span className={trader.isActive ? 'text-green-400' : 'text-yellow-400'}>
+                            {trader.isActive ? '● 跟单中' : '● 已暂停'}
+                          </span>
+                          <span>|</span>
+                          <span>{trader.activePositions} 个活跃仓位</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 收益数据 */}
+                    <div className="flex gap-8">
+                      <div>
+                        <p className="text-neutral-400 text-sm">累计投入</p>
+                        <p className="text-white font-medium">${trader.totalInvested.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-neutral-400 text-sm">当前收益</p>
+                        <p className={`font-medium ${trader.currentProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {trader.currentProfit >= 0 ? '+' : ''}${trader.currentProfit.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-neutral-400 text-sm">收益率</p>
+                        <p className={`font-medium ${trader.profitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {trader.profitPercent >= 0 ? '+' : ''}{trader.profitPercent.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => toggleTrader(trader.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          trader.isActive 
+                            ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' 
+                            : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                        }`}
+                        title={trader.isActive ? '暂停跟单' : '恢复跟单'}
+                      >
+                        {trader.isActive ? <Pause size={18} /> : <Play size={18} />}
+                      </button>
+                      <button 
+                        className="p-2 rounded-lg bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                        title="设置"
+                      >
+                        <Settings size={18} />
+                      </button>
+                      <button 
+                        onClick={() => removeTrader(trader.id)}
+                        className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                        title="停止跟单"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 最近交易 */}
+                  <div className="mt-4 pt-4 border-t border-white/5">
+                    <p className="text-sm text-neutral-500">
+                      最近交易: <span className="text-neutral-300">{trader.lastTrade}</span>
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'history' && !loading && (
+          <div className="card-dark overflow-hidden">
+            {tradeHistory.length === 0 ? (
+              <div className="p-12 text-center">
+                <Clock size={48} className="text-neutral-600 mx-auto mb-4" />
+                <p className="text-neutral-400">暂无交易历史</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">时间</th>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">交易员</th>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">交易对</th>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">方向</th>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">数量</th>
+                    <th className="text-left text-neutral-400 text-sm font-medium p-4">盈亏</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {tradeHistory.map((trade, i) => (
+                    <tr key={i} className="hover:bg-white/5 transition-colors">
+                      <td className="p-4 text-neutral-400 text-sm">{trade.time}</td>
+                      <td className="p-4 text-white">{trade.trader}</td>
+                      <td className="p-4 text-white">{trade.pair}</td>
+                      <td className="p-4">
+                        <span className={`text-sm ${trade.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                          {trade.side === 'buy' ? '买入' : '卖出'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-white">{trade.amount}</td>
+                      <td className="p-4">
+                        <span className={trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* 绑定API弹窗 */}
+        <BindApiModal
+          isOpen={showBindApi}
+          onClose={() => setShowBindApi(false)}
+          traderId={1}
+        />
+      </div>
+    </div>
+  );
+}
