@@ -1,5 +1,5 @@
 // API 配置
-export const API_BASE_URL = 'https://1309969847-043fcmf88j.ap-guangzhou.tencentscf.com/api/v1';
+export const API_BASE_URL = 'https://copytrading-backend-production.up.railway.app/api/v1';
 
 // 通用请求封装
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
