@@ -60,4 +60,11 @@ export const api = {
     list: () => apiRequest('/orders/'),
     create: (data: any) => apiRequest('/orders/', { method: 'POST', body: JSON.stringify(data) }),
   },
+  
+  // 跟单引擎
+  copyEngine: {
+    status: () => apiRequest('/copy-engine/status'),
+    syncTrader: (id: number) => apiRequest(`/copy-engine/sync/${id}`, { method: 'POST' }),
+    syncAll: () => apiRequest('/copy-engine/sync-all', { method: 'POST' }),
+  },
 };

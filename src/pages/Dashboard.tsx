@@ -3,7 +3,7 @@ import {
   Wallet, TrendingUp, Users, Activity, 
   Settings, Pause, Play, X,
   Clock, ArrowLeft, LogOut, Key,
-  Loader2
+  Loader2, RefreshCw, Zap
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarketTicker from '../components/MarketTicker';
@@ -112,6 +112,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBindApi, setShowBindApi] = useState(false);
+  const [engineStatus, setEngineStatus] = useState<{engine_running: boolean; active_traders: number; active_follows: number; total_copy_trades: number} | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const { user, logout } = useAuth();
 
   // Fetch following list
@@ -154,6 +157,22 @@ export default function Dashboard() {
     }
 
     fetchProfitData();
+  }, []);
+
+  // Fetch copy engine status
+  useEffect(() => {
+    async function fetchEngineStatus() {
+      try {
+        const data = await api.copyEngine.status();
+        setEngineStatus(data);
+      } catch (err) {
+        console.error('Failed to fetch engine status:', err);
+      }
+    }
+
+    fetchEngineStatus();
+    const interval = setInterval(fetchEngineStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch trade history when history tab is active
@@ -217,6 +236,28 @@ export default function Dashboard() {
       setTimeout(() => setActiveTab('history'), 0);
     } else {
       window.location.reload();
+    }
+  };
+
+  const handleManualSync = async (traderId?: number) => {
+    try {
+      setSyncing(true);
+      setSyncResult(null);
+      if (traderId) {
+        await api.copyEngine.syncTrader(traderId);
+        setSyncResult(`交易员 #${traderId} 同步完成`);
+      } else {
+        await api.copyEngine.syncAll();
+        setSyncResult('全部交易员同步完成');
+      }
+      // 刷新引擎状态
+      const status = await api.copyEngine.status();
+      setEngineStatus(status);
+    } catch (err: any) {
+      setSyncResult(err.message || '同步失败');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 3000);
     }
   };
 
@@ -404,6 +445,52 @@ export default function Dashboard() {
                   <Key size={18} />
                   绑定API
                 </button>
+              </div>
+            </div>
+
+            {/* 自动跟单引擎状态 */}
+            <div className="card-dark p-6 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-400" />
+                    自动跟单引擎
+                  </h3>
+                  <p className="text-neutral-400 text-sm">
+                    {engineStatus?.engine_running ? '引擎运行中，每60秒自动同步持仓' : '引擎未运行'}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleManualSync()}
+                    disabled={syncing}
+                    className="px-4 py-2 rounded-xl bg-yellow-500/20 text-yellow-400 font-medium hover:bg-yellow-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    手动同步
+                  </button>
+                </div>
+              </div>
+              
+              {syncResult && (
+                <div className={`text-sm mb-3 ${syncResult.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
+                  {syncResult}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                <div>
+                  <p className="text-neutral-400 text-xs mb-1">活跃交易员</p>
+                  <p className="text-xl font-bold text-white">{engineStatus?.active_traders ?? '-'}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 text-xs mb-1">活跃跟单</p>
+                  <p className="text-xl font-bold text-white">{engineStatus?.active_follows ?? '-'}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 text-xs mb-1">总跟单笔数</p>
+                  <p className="text-xl font-bold text-white">{engineStatus?.total_copy_trades ?? '-'}</p>
+                </div>
               </div>
             </div>
 

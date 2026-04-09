@@ -214,24 +214,23 @@ export default function CopyTradingModal({ isOpen, onClose, trader }: CopyTradin
           </div>
         </div>
 
-          {/* 操作结果提示 */}
-          {resultMsg && (
-            <div className={`flex items-start gap-3 p-4 border rounded-xl ${
-              resultMsg.type === 'success' 
-                ? 'bg-green-500/10 border-green-500/20' 
-                : 'bg-red-500/10 border-red-500/20'
+        {/* 操作结果提示 */}
+        {resultMsg && (
+          <div className={`flex items-start gap-3 p-4 border rounded-xl ${
+            resultMsg.type === 'success' 
+              ? 'bg-green-500/10 border-green-500/20' 
+              : 'bg-red-500/10 border-red-500/20'
+          }`}>
+            <AlertCircle size={18} className={`flex-shrink-0 mt-0.5 ${
+              resultMsg.type === 'success' ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <p className={`text-sm ${
+              resultMsg.type === 'success' ? 'text-green-200/80' : 'text-red-200/80'
             }`}>
-              <AlertCircle size={18} className={`flex-shrink-0 mt-0.5 ${
-                resultMsg.type === 'success' ? 'text-green-500' : 'text-red-500'
-              }`} />
-              <p className={`text-sm ${
-                resultMsg.type === 'success' ? 'text-green-200/80' : 'text-red-200/80'
-              }`}>
-                {resultMsg.text}
-              </p>
-            </div>
-          )}
-        </div>
+              {resultMsg.text}
+            </p>
+          </div>
+        )}
 
         {/* 底部按钮 */}
         <div className="flex gap-3 p-6 border-t border-white/10">
