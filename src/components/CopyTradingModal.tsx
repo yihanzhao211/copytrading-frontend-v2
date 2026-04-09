@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, TrendingUp, AlertCircle, DollarSign, Percent } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface CopyTradingModalProps {
   isOpen: boolean;
@@ -21,19 +22,43 @@ export default function CopyTradingModal({ isOpen, onClose, trader }: CopyTradin
   const [maxPosition, setMaxPosition] = useState(1000);
   const [stopLoss, setStopLoss] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultMsg, setResultMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   if (!isOpen || !trader) return null;
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setResultMsg(null);
     
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    alert(`跟单设置成功！\n\n交易员：${trader.name}\n跟单模式：${copyMode === 'ratio' ? '固定比例' : '固定金额'}\n${copyMode === 'ratio' ? `跟单比例：${copyRatio * 100}%` : `固定金额：$${fixedAmount}`}\n最大持仓：$${maxPosition}\n止损比例：${stopLoss}%`);
-    
-    setIsSubmitting(false);
-    onClose();
+    try {
+      const payload = {
+        trader_id: trader.id,
+        copy_mode: copyMode === 'ratio' ? 'ratio' : 'fixed',
+        copy_ratio: copyMode === 'ratio' ? copyRatio : 1.0,
+        fixed_amount: copyMode === 'fixed' ? fixedAmount : null,
+        max_position_amount: maxPosition,
+        stop_loss_percent: stopLoss,
+      };
+      
+      await api.follow.create(payload);
+      
+      setResultMsg({
+        type: 'success',
+        text: `跟单设置成功！已跟随 ${trader.name}`
+      });
+      
+      setTimeout(() => {
+        onClose();
+        setResultMsg(null);
+      }, 1500);
+    } catch (err: any) {
+      setResultMsg({
+        type: 'error',
+        text: err.message || '跟单设置失败，请重试'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -187,6 +212,25 @@ export default function CopyTradingModal({ isOpen, onClose, trader }: CopyTradin
               跟单交易存在风险。过往业绩不代表未来表现。请根据自身风险承受能力合理设置参数。
             </p>
           </div>
+        </div>
+
+          {/* 操作结果提示 */}
+          {resultMsg && (
+            <div className={`flex items-start gap-3 p-4 border rounded-xl ${
+              resultMsg.type === 'success' 
+                ? 'bg-green-500/10 border-green-500/20' 
+                : 'bg-red-500/10 border-red-500/20'
+            }`}>
+              <AlertCircle size={18} className={`flex-shrink-0 mt-0.5 ${
+                resultMsg.type === 'success' ? 'text-green-500' : 'text-red-500'
+              }`} />
+              <p className={`text-sm ${
+                resultMsg.type === 'success' ? 'text-green-200/80' : 'text-red-200/80'
+              }`}>
+                {resultMsg.text}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 底部按钮 */}

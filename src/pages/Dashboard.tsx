@@ -8,7 +8,8 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import MarketTicker from '../components/MarketTicker';
 import BindApiModal from '../components/BindApiModal';
-import { api } from '../lib/api';
+import { api, apiRequest } from '../lib/api';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // API Response Types
 interface Trader {
@@ -106,6 +107,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'following' | 'history'>('overview');
   const [followingList, setFollowingList] = useState<FollowingTrader[]>([]);
   const [tradeHistory, setTradeHistory] = useState<TradeHistory[]>([]);
+  const [profitData, setProfitData] = useState<{date: string; value: number}[]>([]);
+  const [profitLoading, setProfitLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBindApi, setShowBindApi] = useState(false);
@@ -131,6 +134,28 @@ export default function Dashboard() {
     fetchFollowing();
   }, []);
 
+  // Fetch profit chart data
+  useEffect(() => {
+    async function fetchProfitData() {
+      try {
+        setProfitLoading(true);
+        const data = await apiRequest('/traders/1/history?days=30');
+        if (data && Array.isArray(data.history)) {
+          setProfitData(data.history.map((item: any) => ({
+            date: item.date.slice(5),
+            value: item.value
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch profit data:', err);
+      } finally {
+        setProfitLoading(false);
+      }
+    }
+
+    fetchProfitData();
+  }, []);
+
   // Fetch trade history when history tab is active
   useEffect(() => {
     if (activeTab !== 'history') return;
@@ -153,15 +178,32 @@ export default function Dashboard() {
     fetchHistory();
   }, [activeTab]);
 
-  const toggleTrader = (id: number) => {
-    setFollowingList(prev => prev.map(trader => 
-      trader.id === id ? { ...trader, isActive: !trader.isActive } : trader
-    ));
+  const toggleTrader = async (id: number) => {
+    const trader = followingList.find(t => t.id === id);
+    if (!trader) return;
+    
+    try {
+      if (trader.isActive) {
+        await api.follow.pause(id);
+      } else {
+        await api.follow.resume(id);
+      }
+      setFollowingList(prev => prev.map(t => 
+        t.id === id ? { ...t, isActive: !t.isActive } : t
+      ));
+    } catch (err: any) {
+      alert(err.message || '操作失败');
+    }
   };
 
-  const removeTrader = (id: number) => {
-    if (confirm('确定要停止跟单这位交易员吗？已开仓位将保持。')) {
+  const removeTrader = async (id: number) => {
+    if (!confirm('确定要停止跟单这位交易员吗？已开仓位将保持。')) return;
+    
+    try {
+      await api.follow.delete(id);
       setFollowingList(prev => prev.filter(trader => trader.id !== id));
+    } catch (err: any) {
+      alert(err.message || '取消跟单失败');
     }
   };
 
@@ -365,11 +407,63 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* 收益曲线占位 */}
+            {/* 收益曲线 */}
             <div className="card-dark p-6">
               <h3 className="text-lg font-semibold text-white mb-6">收益曲线</h3>
-              <div className="h-64 flex items-center justify-center text-neutral-500">
-                [收益图表区域 - 可接入 Recharts 实现]
+              <div className="h-64">
+                {profitLoading ? (
+                  <div className="flex items-center justify-center h-full text-neutral-500">
+                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                    加载中...
+                  </div>
+                ) : profitData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={profitData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#737373" 
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis 
+                        stroke="#737373" 
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => `${value}`}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#171717', 
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px'
+                        }}
+                        itemStyle={{ color: '#22d3ee' }}
+                        labelStyle={{ color: '#a3a3a3' }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke="#22d3ee" 
+                        strokeWidth={2}
+                        fillOpacity={1} 
+                        fill="url(#colorValue)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-neutral-500">
+                    暂无收益数据
+                  </div>
+                )}
               </div>
             </div>
           </>

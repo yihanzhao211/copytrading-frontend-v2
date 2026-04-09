@@ -50,6 +50,9 @@ export const api = {
   follow: {
     list: () => apiRequest('/follow/'),
     create: (data: any) => apiRequest('/follow/', { method: 'POST', body: JSON.stringify(data) }),
+    pause: (id: number) => apiRequest(`/follow/${id}/pause`, { method: 'POST' }),
+    resume: (id: number) => apiRequest(`/follow/${id}/resume`, { method: 'POST' }),
+    delete: (id: number) => apiRequest(`/follow/${id}`, { method: 'DELETE' }),
   },
   
   // 订单
