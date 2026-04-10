@@ -3,7 +3,8 @@ import {
   Wallet, TrendingUp, Users, Activity, 
   Settings, Pause, Play, X,
   Clock, ArrowLeft, LogOut, Key,
-  Loader2, RefreshCw, Zap
+  Loader2, RefreshCw, Zap,
+  Crown
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarketTicker from '../components/MarketTicker';
@@ -115,6 +116,8 @@ export default function Dashboard() {
   const [engineStatus, setEngineStatus] = useState<{engine_running: boolean; active_traders: number; active_follows: number; total_copy_trades: number} | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [isMember, setIsMember] = useState<boolean | null>(null);
+  const [membershipExpiresAt, setMembershipExpiresAt] = useState<string | null>(null);
   const { user, logout } = useAuth();
 
   // Fetch following list
@@ -173,6 +176,21 @@ export default function Dashboard() {
     fetchEngineStatus();
     const interval = setInterval(fetchEngineStatus, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Fetch membership status
+  useEffect(() => {
+    async function fetchMembership() {
+      try {
+        const data = await api.wallet.get();
+        setIsMember(data.is_member);
+        setMembershipExpiresAt(data.membership_expires_at);
+      } catch (err) {
+        console.error('Failed to fetch membership:', err);
+      }
+    }
+
+    fetchMembership();
   }, []);
 
   // Fetch trade history when history tab is active
@@ -360,7 +378,7 @@ export default function Dashboard() {
         {activeTab === 'overview' && !loading && (
           <>
             {/* 资产总览卡片 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="card-dark p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
@@ -373,6 +391,21 @@ export default function Dashboard() {
                 </p>
                 <p className="text-sm text-neutral-500 mt-1">
                   本金: ${totalInvested.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="card-dark p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isMember ? 'bg-yellow-500/10' : 'bg-white/10'}`}>
+                    <Crown size={20} className={isMember ? 'text-yellow-400' : 'text-neutral-400'} />
+                  </div>
+                  <span className="text-neutral-400">会员状态</span>
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {isMember === null ? '-' : isMember ? '已开通' : '未开通'}
+                </p>
+                <p className="text-sm text-neutral-500 mt-1">
+                  {membershipExpiresAt ? `到期: ${new Date(membershipExpiresAt).toLocaleDateString('zh-CN')}` : '开通会员解锁全部功能'}
                 </p>
               </div>
 
@@ -402,6 +435,26 @@ export default function Dashboard() {
                 <p className="text-sm text-neutral-500 mt-1">
                   {followingList.filter(t => t.isActive).length} 位活跃中
                 </p>
+              </div>
+            </div>
+
+            {/* 会员入口 */}
+            <div className="card-dark p-6 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-yellow-400" />
+                    开通会员
+                  </h3>
+                  <p className="text-neutral-400 text-sm">300 USDT/月，解锁全部高级功能</p>
+                </div>
+                <button
+                  onClick={() => { window.location.hash = 'wallet'; window.location.reload(); }}
+                  className="px-6 py-3 rounded-xl bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-colors flex items-center gap-2"
+                >
+                  <Crown size={18} />
+                  {isMember ? '去续费' : '去开通'}
+                </button>
               </div>
             </div>
 

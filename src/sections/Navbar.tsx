@@ -17,6 +17,11 @@ const goToDashboard = () => {
   window.location.reload();
 };
 
+const goToWallet = () => {
+  window.location.hash = 'wallet';
+  window.location.reload();
+};
+
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -78,6 +83,12 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-4">
             {isAuthenticated ? (
               <>
+                <button
+                  onClick={goToWallet}
+                  className="text-sm text-yellow-400 hover:text-yellow-300 transition-colors"
+                >
+                  钱包
+                </button>
                 <button
                   onClick={goToDashboard}
                   className="flex items-center gap-2 text-sm text-neutral-300 hover:text-white transition-colors"

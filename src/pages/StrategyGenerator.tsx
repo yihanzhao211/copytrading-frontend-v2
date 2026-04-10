@@ -39,6 +39,11 @@ interface Signal {
   layers?: any;
 }
 
+interface AnalysisItem {
+  status: string;
+  [key: string]: any;
+}
+
 interface StrategyData {
   symbol: string;
   timeframe: string;
@@ -46,6 +51,7 @@ interface StrategyData {
   remaining_points?: number;
   best_signal?: Signal | null;
   strategies: Record<string, Signal[]>;
+  analysis: Record<string, AnalysisItem>;
 }
 
 export default function StrategyGenerator() {
@@ -67,7 +73,13 @@ export default function StrategyGenerator() {
         login({ ...user, points: res.data.remaining_points });
       }
     } catch (e: any) {
-      setError(e.message || '策略生成失败，请稍后重试');
+      if (e.message?.includes('无效的认证令牌') || e.message?.includes('认证')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      } else {
+        setError(e.message || '策略生成失败，请稍后重试');
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +89,51 @@ export default function StrategyGenerator() {
     if (dir === 'long') return { text: '做多', color: 'text-green-400 bg-green-400/10 border-green-400/20' };
     if (dir === 'short') return { text: '做空', color: 'text-red-400 bg-red-400/10 border-red-400/20' };
     return { text: '观望', color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' };
+  };
+
+  const renderAnalysis = (name: string, a: AnalysisItem) => {
+    if (!a) return null;
+    if (name === 'momentum') {
+      return (
+        <div className="text-xs text-neutral-400 space-y-1">
+          <div className="flex justify-between"><span>RSI</span><span className="text-white">{a.rsi}</span></div>
+          <div className="flex justify-between"><span>MACD</span><span className="text-white">{a.macd_cross}</span></div>
+          <div className="flex justify-between"><span>成交量比</span><span className="text-white">{a.volume_ratio}x</span></div>
+          <div className="flex justify-between"><span>日线趋势</span><span className="text-white">{a.daily_trend === 'up' ? '上涨' : a.daily_trend === 'down' ? '下跌' : '震荡'}</span></div>
+        </div>
+      );
+    }
+    if (name === 'breakout') {
+      return (
+        <div className="text-xs text-neutral-400 space-y-1">
+          <div className="flex justify-between"><span>当前价</span><span className="text-white">${a.current}</span></div>
+          <div className="flex justify-between"><span>20期高点</span><span className="text-white">${a.recent_high}</span></div>
+          <div className="flex justify-between"><span>20期低点</span><span className="text-white">${a.recent_low}</span></div>
+          <div className="flex justify-between"><span>成交量比</span><span className="text-white">{a.volume_ratio}x</span></div>
+        </div>
+      );
+    }
+    if (name === 'mean_reversion') {
+      return (
+        <div className="text-xs text-neutral-400 space-y-1">
+          <div className="flex justify-between"><span>布林带位置</span><span className="text-white">{a.bb_position_pct}%</span></div>
+          <div className="flex justify-between"><span>上轨</span><span className="text-white">${a.bb_upper}</span></div>
+          <div className="flex justify-between"><span>下轨</span><span className="text-white">${a.bb_lower}</span></div>
+          <div className="flex justify-between"><span>市场状态</span><span className="text-white">{a.regime} (ADX {a.adx})</span></div>
+        </div>
+      );
+    }
+    if (name === 'triple_resonance') {
+      return (
+        <div className="text-xs text-neutral-400 space-y-1">
+          <div className="flex justify-between"><span>趋势</span><span className="text-white">{a.trend === 'bullish' ? '看涨' : a.trend === 'bearish' ? '看跌' : '震荡'}</span></div>
+          <div className="flex justify-between"><span>EMA20</span><span className="text-white">${a.ema20}</span></div>
+          <div className="flex justify-between"><span>EMA50</span><span className="text-white">${a.ema50}</span></div>
+          <div className="flex justify-between"><span>阻力/支撑</span><span className="text-white">${a.resistance} / ${a.support}</span></div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -229,8 +286,8 @@ export default function StrategyGenerator() {
                         <div className="text-lg font-semibold">{result.best_signal.rr_ratio?.toFixed(2) || '-'}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-neutral-400 mb-1">当前价</div>
-                        <div className="text-lg font-semibold">${result.symbol ? '' : ''}{result.best_signal.entry_price}</div>
+                        <div className="text-xs text-neutral-400 mb-1">建议入场</div>
+                        <div className="text-lg font-semibold">${result.best_signal.entry_price}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -252,7 +309,8 @@ export default function StrategyGenerator() {
                   <div className="glass rounded-2xl p-8 border border-white/10 text-center">
                     <BarChart3 className="w-12 h-12 text-neutral-500 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-white mb-2">当前市场暂无明确交易信号</h3>
-                    <p className="text-neutral-400 text-sm">4套策略均未触发入场条件，建议观望或切换币种/周期再试</p>
+                    <p className="text-neutral-400 text-sm mb-2">4套策略均未触发入场条件，建议观望</p>
+                    <p className="text-neutral-500 text-xs">下方卡片显示了各策略的实时分析指标</p>
                   </div>
                 )}
 
@@ -260,6 +318,7 @@ export default function StrategyGenerator() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(result.strategies || {}).map(([name, signals]) => {
                     const dirInfo = getDirectionLabel(signals[0]?.direction);
+                    const analysis = result.analysis?.[name];
                     return (
                       <div key={name} className="glass rounded-xl p-5 border border-white/10">
                         <div className="flex items-center justify-between mb-3">
@@ -267,12 +326,14 @@ export default function StrategyGenerator() {
                             <Layers className="w-4 h-4 text-cyan-400" />
                             <h4 className="font-semibold text-white">{STRATEGY_NAMES[name] || name}</h4>
                           </div>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-neutral-400">
-                            {signals.length} 个信号
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${signals.length > 0 ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-neutral-400'}`}>
+                            {signals.length > 0 ? `${signals.length} 个信号` : analysis?.status || '观望'}
                           </span>
                         </div>
                         {signals.length === 0 ? (
-                          <p className="text-sm text-neutral-500">当前暂无信号 — 条件未满足</p>
+                          <div className="mt-2">
+                            {analysis ? renderAnalysis(name, analysis) : <p className="text-sm text-neutral-500">当前暂无信号 — 条件未满足</p>}
+                          </div>
                         ) : (
                           <div className="space-y-2">
                             {signals.map((s, i) => (

@@ -79,6 +79,21 @@ export const api = {
       apiRequest('/strategy/generate', { method: 'POST', body: JSON.stringify({ symbol, timeframe }) }),
   },
 
+  // 会员
+  wallet: {
+    get: () => apiRequest('/wallet/'),
+    recharge: (data: { months: number; method?: string }) =>
+      apiRequest('/wallet/recharge', { method: 'POST', body: JSON.stringify(data) }),
+    recharges: (params?: { limit?: number; offset?: number }) => {
+      const query = new URLSearchParams(params as Record<string, string>).toString();
+      return apiRequest(`/wallet/recharges?${query}`);
+    },
+    confirm: (id: number, data: { status: string; note?: string }) =>
+      apiRequest(`/wallet/recharge/${id}/confirm`, { method: 'POST', body: JSON.stringify(data) }),
+    cancel: (id: number) =>
+      apiRequest(`/wallet/recharge/${id}/cancel`, { method: 'POST' }),
+  },
+
   // 社区
   community: {
     sections: () => apiRequest('/community/sections'),

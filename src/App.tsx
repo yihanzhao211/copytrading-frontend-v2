@@ -7,15 +7,17 @@ import { WebSocketProvider } from './contexts/WebSocketContext';
 import Dashboard from './pages/Dashboard';
 import Community from './pages/Community';
 import StrategyGenerator from './pages/StrategyGenerator';
+import WalletPage from './pages/Wallet';
 
 gsap.registerPlugin(ScrollTrigger);
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
-  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy'>(() => {
+  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy' | 'wallet'>(() => {
     const hash = window.location.hash;
     if (hash === '#dashboard') return 'dashboard';
     if (hash === '#strategy') return 'strategy';
+    if (hash === '#wallet') return 'wallet';
     return 'community';
   });
 
@@ -24,6 +26,7 @@ function AppContent() {
       const hash = window.location.hash;
       if (hash === '#dashboard') setCurrentPage('dashboard');
       else if (hash === '#strategy') setCurrentPage('strategy');
+      else if (hash === '#wallet') setCurrentPage('wallet');
       else setCurrentPage('community');
     };
 
@@ -47,6 +50,10 @@ function AppContent() {
 
   if (currentPage === 'strategy') {
     return <StrategyGenerator />;
+  }
+
+  if (currentPage === 'wallet') {
+    return isAuthenticated ? <WalletPage /> : <Community />;
   }
 
   return <Community />;
