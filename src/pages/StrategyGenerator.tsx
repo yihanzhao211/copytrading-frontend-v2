@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import { 
   Brain, TrendingUp, TrendingDown, Minus, Target, ShieldAlert, 
-  DollarSign, Clock, Loader2, Activity
+  DollarSign, Clock, Loader2, Activity, BarChart3
 } from 'lucide-react';
 import { api } from '../lib/api';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ReferenceLine,
+} from 'recharts';
 
 const SYMBOLS = [
   'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT',
@@ -16,6 +27,14 @@ const TIMEFRAMES = [
   { key: '4h', label: '4小时' },
   { key: '1d', label: '1天' },
 ];
+
+interface ChartPoint {
+  time: number;
+  price: number;
+  ma7?: number;
+  ma25?: number;
+  rsi?: number;
+}
 
 interface StrategyResult {
   symbol: string;
@@ -34,6 +53,7 @@ interface StrategyResult {
   stop_loss: number;
   take_profit: number;
   risk_level: string;
+  chart_data: ChartPoint[];
   generated_at: string;
 }
 
@@ -73,6 +93,27 @@ export default function StrategyGenerator() {
     if (risk === '低') return 'text-green-400 bg-green-400/10';
     if (risk === '中等') return 'text-yellow-400 bg-yellow-400/10';
     return 'text-red-400 bg-red-400/10';
+  };
+
+  const formatChartTime = (ts: number) => {
+    const date = new Date(ts);
+    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-neutral-900 border border-white/10 rounded-lg p-3 shadow-xl">
+          <p className="text-xs text-neutral-400 mb-1">{formatChartTime(label)}</p>
+          {payload.map((p: any, idx: number) => (
+            <p key={idx} className="text-sm" style={{ color: p.color }}>
+              {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -202,6 +243,124 @@ export default function StrategyGenerator() {
               <div className="glass rounded-xl p-4 border border-white/10 text-center">
                 <p className="text-xs text-neutral-400 mb-1">MA25</p>
                 <p className="text-lg font-semibold text-white">${result.ma25.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* 价格走势 + MA 图表 */}
+            <div className="glass rounded-2xl p-6 border border-white/10">
+              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <BarChart3 size={18} className="text-cyan-400" />
+                价格走势 & 移动平均线
+              </h3>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={result.chart_data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="time" 
+                      tickFormatter={formatChartTime} 
+                      stroke="#525252" 
+                      tick={{ fill: '#737373', fontSize: 10 }} 
+                      minTickGap={30}
+                    />
+                    <YAxis 
+                      stroke="#525252" 
+                      tick={{ fill: '#737373', fontSize: 10 }} 
+                      domain={['auto', 'auto']}
+                      tickFormatter={(v) => `$${v.toLocaleString()}`}
+                      width={60}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke="#22d3ee" 
+                      strokeWidth={2}
+                      fill="url(#priceGradient)" 
+                      name="价格"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="ma7" 
+                      stroke="#f59e0b" 
+                      strokeWidth={1.5} 
+                      dot={false} 
+                      name="MA7"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="ma25" 
+                      stroke="#a855f7" 
+                      strokeWidth={1.5} 
+                      dot={false} 
+                      name="MA25"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-center gap-6 mt-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 rounded bg-cyan-400" />
+                  <span className="text-neutral-400">价格</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 rounded bg-amber-500" />
+                  <span className="text-neutral-400">MA7</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 rounded bg-purple-500" />
+                  <span className="text-neutral-400">MA25</span>
+                </div>
+              </div>
+            </div>
+
+            {/* RSI 图表 */}
+            <div className="glass rounded-2xl p-6 border border-white/10">
+              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <Activity size={18} className="text-cyan-400" />
+                RSI 指标
+              </h3>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={result.chart_data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="time" 
+                      tickFormatter={formatChartTime} 
+                      stroke="#525252" 
+                      tick={{ fill: '#737373', fontSize: 10 }} 
+                      minTickGap={30}
+                    />
+                    <YAxis 
+                      stroke="#525252" 
+                      tick={{ fill: '#737373', fontSize: 10 }} 
+                      domain={[0, 100]}
+                      width={30}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" />
+                    <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" />
+                    <Line 
+                      type="monotone" 
+                      dataKey="rsi" 
+                      stroke="#f472b6" 
+                      strokeWidth={1.5} 
+                      dot={false} 
+                      name="RSI"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-between mt-4 text-xs text-neutral-500">
+                <span className="text-green-400">30 超卖</span>
+                <span>50 中性</span>
+                <span className="text-red-400">70 超买</span>
               </div>
             </div>
 
