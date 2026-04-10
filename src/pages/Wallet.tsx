@@ -96,7 +96,7 @@ export default function WalletPage() {
   const fetchRecords = async () => {
     try {
       setRecordsLoading(true);
-      const data = await api.wallet.recharges({ limit: '50' });
+      const data = await api.wallet.recharges({ limit: 50 });
       setRecords(data.records || []);
     } catch (err: any) {
       console.error('Failed to fetch records:', err);
