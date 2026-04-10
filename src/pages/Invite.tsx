@@ -73,7 +73,7 @@ export default function InvitePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shareUrl = stats?.code ? `${window.location.origin}/#community?ref=${stats.code}` : '';
+  const shareUrl = stats?.code ? `${window.location.origin}${window.location.pathname}#community?ref=${stats.code}` : '';
 
   return (
     <div className="min-h-screen bg-black pt-24 pb-12">
