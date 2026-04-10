@@ -67,4 +67,20 @@ export const api = {
     syncTrader: (id: number) => apiRequest(`/copy-engine/sync/${id}`, { method: 'POST' }),
     syncAll: () => apiRequest('/copy-engine/sync-all', { method: 'POST' }),
   },
+
+  // 社区
+  community: {
+    sections: () => apiRequest('/community/sections'),
+    posts: (params?: { section_id?: number; sort?: string; limit?: number; offset?: number }) => {
+      const query = new URLSearchParams(params as Record<string, string>).toString();
+      return apiRequest(`/community/posts?${query}`);
+    },
+    postDetail: (id: number) => apiRequest(`/community/posts/${id}`),
+    createPost: (data: any) => apiRequest('/community/posts', { method: 'POST', body: JSON.stringify(data) }),
+    createComment: (postId: number, content: string) =>
+      apiRequest(`/community/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
+    likePost: (postId: number) => apiRequest(`/community/posts/${postId}/like`, { method: 'POST' }),
+    checkIn: () => apiRequest('/community/check-in', { method: 'POST' }),
+    traderPosts: (traderId: number) => apiRequest(`/community/traders/${traderId}/posts`),
+  },
 };
