@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { 
   Flame, Clock, MessageSquare, Heart, Eye, PenSquare, 
   TrendingUp, Users, Calendar, ChevronRight, Award,
-  X, Send, ArrowLeft, Zap, Brain
+  X, Send, ArrowLeft, Zap, Brain, Gift
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -260,6 +260,7 @@ export default function Community() {
               <a href="#community" className="text-sm text-white font-medium">广场</a>
               <a href="#strategy" className="text-sm text-neutral-400 hover:text-white transition-colors">策略分析</a>
               <a href="#dashboard" className="text-sm text-neutral-400 hover:text-white transition-colors">仪表盘</a>
+              <a href="#invite" className="text-sm text-neutral-400 hover:text-white transition-colors">邀请返利</a>
               {isAuthenticated && user ? (
                 <div className="flex items-center gap-3">
                   <div className="hidden sm:flex flex-col items-end">
@@ -342,6 +343,10 @@ export default function Community() {
                 <a href="#dashboard" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-white/5 transition-colors">
                   <Users size={16} />
                   交易员
+                </a>
+                <a href="#invite" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-white/5 transition-colors">
+                  <Gift size={16} />
+                  邀请返利
                 </a>
               </div>
             </div>

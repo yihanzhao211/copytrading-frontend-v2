@@ -4,7 +4,7 @@ import {
   Settings, Pause, Play, X,
   Clock, ArrowLeft, LogOut, Key,
   Loader2, RefreshCw, Zap,
-  Crown
+  Crown, Gift
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarketTicker from '../components/MarketTicker';
@@ -293,6 +293,13 @@ export default function Dashboard() {
               返回首页
             </button>
             <div className="flex items-center gap-4">
+              <a
+                href="#invite"
+                className="hidden sm:flex items-center gap-1.5 text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                <Gift size={16} />
+                邀请返利
+              </a>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-black font-bold text-sm">
                   {user?.name?.[0] || 'U'}

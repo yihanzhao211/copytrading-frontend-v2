@@ -94,6 +94,13 @@ export const api = {
       apiRequest(`/wallet/recharge/${id}/cancel`, { method: 'POST' }),
   },
 
+  // 邀请
+  invite: {
+    generate: () => apiRequest('/invite/generate', { method: 'POST' }),
+    stats: () => apiRequest('/invite/stats'),
+    records: () => apiRequest('/invite/records'),
+  },
+
   // 社区
   community: {
     sections: () => apiRequest('/community/sections'),

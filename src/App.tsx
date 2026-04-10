@@ -8,16 +8,18 @@ import Dashboard from './pages/Dashboard';
 import Community from './pages/Community';
 import StrategyGenerator from './pages/StrategyGenerator';
 import WalletPage from './pages/Wallet';
+import InvitePage from './pages/Invite';
 
 gsap.registerPlugin(ScrollTrigger);
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
-  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy' | 'wallet'>(() => {
+  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy' | 'wallet' | 'invite'>(() => {
     const hash = window.location.hash;
     if (hash === '#dashboard') return 'dashboard';
     if (hash === '#strategy') return 'strategy';
     if (hash === '#wallet') return 'wallet';
+    if (hash === '#invite') return 'invite';
     return 'community';
   });
 
@@ -27,6 +29,7 @@ function AppContent() {
       if (hash === '#dashboard') setCurrentPage('dashboard');
       else if (hash === '#strategy') setCurrentPage('strategy');
       else if (hash === '#wallet') setCurrentPage('wallet');
+      else if (hash === '#invite') setCurrentPage('invite');
       else setCurrentPage('community');
     };
 
@@ -54,6 +57,10 @@ function AppContent() {
 
   if (currentPage === 'wallet') {
     return isAuthenticated ? <WalletPage /> : <Community />;
+  }
+
+  if (currentPage === 'invite') {
+    return isAuthenticated ? <InvitePage /> : <Community />;
   }
 
   return <Community />;
