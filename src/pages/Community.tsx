@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { 
   Flame, Clock, MessageSquare, Heart, Eye, PenSquare, 
   TrendingUp, Users, Calendar, ChevronRight, Award,
-  X, Send, ArrowLeft, Zap
+  X, Send, ArrowLeft, Zap, Brain
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -258,6 +258,7 @@ export default function Community() {
             </div>
             <div className="flex items-center gap-6">
               <a href="#community" className="text-sm text-white font-medium">广场</a>
+              <a href="#strategy" className="text-sm text-neutral-400 hover:text-white transition-colors">策略分析</a>
               <a href="#dashboard" className="text-sm text-neutral-400 hover:text-white transition-colors">仪表盘</a>
               {isAuthenticated && user ? (
                 <div className="flex items-center gap-3">
@@ -293,6 +294,22 @@ export default function Community() {
             <div className="glass rounded-xl p-4 border border-white/10">
               <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">导航</h3>
               <nav className="space-y-1">
+                <a
+                  href="#community"
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                    activeSection === null ? 'bg-cyan-500/20 text-cyan-400' : 'text-neutral-300 hover:bg-white/5'
+                  }`}
+                >
+                  <Flame size={14} />
+                  社区广场
+                </a>
+                <a
+                  href="#strategy"
+                  className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 text-neutral-300 hover:bg-white/5"
+                >
+                  <Brain size={14} />
+                  策略分析
+                </a>
                 <button
                   onClick={() => setActiveSection(null)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${

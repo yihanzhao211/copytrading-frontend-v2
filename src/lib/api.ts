@@ -73,6 +73,12 @@ export const api = {
     tickers: () => apiRequest('/market/tickers'),
   },
 
+  // 策略分析
+  strategy: {
+    generate: (symbol: string, timeframe: string) =>
+      apiRequest('/strategy/generate', { method: 'POST', body: JSON.stringify({ symbol, timeframe }) }),
+  },
+
   // 社区
   community: {
     sections: () => apiRequest('/community/sections'),
