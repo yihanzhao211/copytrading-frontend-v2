@@ -7,7 +7,7 @@ import {
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (user: { email: string; name: string; username?: string }) => void;
+  onSuccess: (user: { email: string; name: string; username?: string; level?: number; exp?: number }) => void;
 }
 
 // API 配置
@@ -79,12 +79,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           email: data.user.email,
           name: data.user.nickname || data.user.username,
           username: data.user.username,
+          level: data.user.level,
+          exp: data.user.exp,
         }));
 
         onSuccess({
           email: data.user.email,
           name: data.user.nickname || data.user.username,
           username: data.user.username,
+          level: data.user.level,
+          exp: data.user.exp,
         });
       } else {
         // 调用后端注册API
@@ -127,12 +131,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             email: loginData.user.email,
             name: loginData.user.nickname || loginData.user.username,
             username: loginData.user.username,
+            level: loginData.user.level,
+            exp: loginData.user.exp,
           }));
 
           onSuccess({
             email: loginData.user.email,
             name: loginData.user.nickname || loginData.user.username,
             username: loginData.user.username,
+            level: loginData.user.level,
+            exp: loginData.user.exp,
           });
         } else {
           // 注册成功但登录失败，提示用户手动登录

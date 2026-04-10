@@ -4,6 +4,8 @@ interface User {
   email: string;
   name: string;
   username?: string;
+  level?: number;
+  exp?: number;
 }
 
 interface AuthContextType {
@@ -11,6 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (user: User) => void;
   logout: () => void;
+  refreshUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
   };
 
+  const refreshUser = () => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -50,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}
