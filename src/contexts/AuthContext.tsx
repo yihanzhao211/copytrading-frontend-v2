@@ -6,6 +6,7 @@ interface User {
   username?: string;
   level?: number;
   exp?: number;
+  points?: number;
 }
 
 interface AuthContextType {

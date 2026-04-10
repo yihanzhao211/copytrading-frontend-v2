@@ -1,20 +1,11 @@
 import { useState } from 'react';
 import { 
-  Brain, TrendingUp, TrendingDown, Minus, Target, ShieldAlert, 
-  DollarSign, Clock, Loader2, Activity, BarChart3
+  Brain, TrendingUp, Target, ShieldAlert, 
+  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers
 } from 'lucide-react';
 import { api } from '../lib/api';
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  Line,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ReferenceLine,
-} from 'recharts';
+import { useAuth } from '../contexts/AuthContext';
+import AuthModal from '../components/AuthModal';
 
 const SYMBOLS = [
   'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT',
@@ -28,40 +19,42 @@ const TIMEFRAMES = [
   { key: '1d', label: '1天' },
 ];
 
-interface ChartPoint {
-  time: number;
-  price: number;
-  ma7?: number;
-  ma25?: number;
-  rsi?: number;
-}
+const STRATEGY_NAMES: Record<string, string> = {
+  triple_resonance: '三重共振',
+  momentum: '动量策略',
+  breakout: '突破策略',
+  mean_reversion: '均值回归',
+};
 
-interface StrategyResult {
+interface Signal {
+  strategy: string;
   symbol: string;
-  timeframe: string;
-  current_price: number;
-  trend: string;
-  trend_score: number;
-  rsi: number;
-  ma7: number;
-  ma25: number;
-  support: number;
-  resistance: number;
-  volatility_24h: number;
-  suggestion: string;
-  entry: number;
+  direction: 'long' | 'short' | string;
+  confidence: number;
+  entry_price: number;
   stop_loss: number;
   take_profit: number;
-  risk_level: string;
-  chart_data: ChartPoint[];
+  rr_ratio: number;
+  timeframe: string;
+  layers?: any;
+}
+
+interface StrategyData {
+  symbol: string;
+  timeframe: string;
   generated_at: string;
+  remaining_points?: number;
+  best_signal?: Signal | null;
+  strategies: Record<string, Signal[]>;
 }
 
 export default function StrategyGenerator() {
+  const { isAuthenticated, refreshUser, user, login } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [symbol, setSymbol] = useState('BTC/USDT');
   const [timeframe, setTimeframe] = useState('1h');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<StrategyResult | null>(null);
+  const [result, setResult] = useState<StrategyData | null>(null);
   const [error, setError] = useState('');
 
   const handleGenerate = async () => {
@@ -70,6 +63,9 @@ export default function StrategyGenerator() {
     try {
       const res = await api.strategy.generate(symbol, timeframe);
       setResult(res.data);
+      if (user && res.data.remaining_points !== undefined) {
+        login({ ...user, points: res.data.remaining_points });
+      }
     } catch (e: any) {
       setError(e.message || '策略生成失败，请稍后重试');
     } finally {
@@ -77,353 +73,230 @@ export default function StrategyGenerator() {
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    if (trend.includes('涨') || trend.includes('多')) return <TrendingUp className="w-6 h-6" />;
-    if (trend.includes('跌') || trend.includes('空')) return <TrendingDown className="w-6 h-6" />;
-    return <Minus className="w-6 h-6" />;
-  };
-
-  const getTrendColor = (trend: string) => {
-    if (trend.includes('涨') || trend.includes('多')) return 'text-green-400 bg-green-400/10 border-green-400/20';
-    if (trend.includes('跌') || trend.includes('空')) return 'text-red-400 bg-red-400/10 border-red-400/20';
-    return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
-  };
-
-  const getRiskColor = (risk: string) => {
-    if (risk === '低') return 'text-green-400 bg-green-400/10';
-    if (risk === '中等') return 'text-yellow-400 bg-yellow-400/10';
-    return 'text-red-400 bg-red-400/10';
-  };
-
-  const formatChartTime = (ts: number) => {
-    const date = new Date(ts);
-    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-neutral-900 border border-white/10 rounded-lg p-3 shadow-xl">
-          <p className="text-xs text-neutral-400 mb-1">{formatChartTime(label)}</p>
-          {payload.map((p: any, idx: number) => (
-            <p key={idx} className="text-sm" style={{ color: p.color }}>
-              {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
+  const getDirectionLabel = (dir?: string) => {
+    if (dir === 'long') return { text: '做多', color: 'text-green-400 bg-green-400/10 border-green-400/20' };
+    if (dir === 'short') return { text: '做空', color: 'text-red-400 bg-red-400/10 border-red-400/20' };
+    return { text: '观望', color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' };
   };
 
   return (
     <div className="min-h-screen bg-black pt-24 pb-12">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-cyan-500/10 mb-4">
             <Brain className="w-8 h-8 text-cyan-400" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">AI 策略分析</h1>
-          <p className="text-neutral-400">选择币种和时间周期，一键生成交易策略</p>
+          <p className="text-neutral-400">集成4套实盘交易策略，智能筛选最优信号</p>
         </div>
 
-        {/* 控制面板 */}
-        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 mb-8">
-          {/* 币种选择 */}
-          <div className="mb-6">
-            <label className="block text-sm text-neutral-400 mb-3 flex items-center gap-2">
-              <Activity size={16} className="text-cyan-400" />
-              选择币种
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {SYMBOLS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSymbol(s)}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    symbol === s
-                      ? 'bg-cyan-500 text-black'
-                      : 'bg-white/5 text-neutral-300 hover:bg-white/10'
-                  }`}
-                >
-                  {s.split('/')[0]}
-                </button>
-              ))}
+        {!isAuthenticated && (
+          <div className="glass rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 mb-4">
+              <Lock className="w-8 h-8 text-cyan-400" />
             </div>
+            <h2 className="text-xl font-semibold text-white mb-2">登录后使用 AI 策略分析</h2>
+            <p className="text-neutral-400 mb-6">注册并登录账户，即可使用4套实盘交易策略分析市场</p>
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold transition-colors"
+            >
+              立即登录 / 注册
+            </button>
+            <AuthModal
+              isOpen={authModalOpen}
+              onClose={() => setAuthModalOpen(false)}
+              onSuccess={() => {
+                refreshUser();
+                setAuthModalOpen(false);
+              }}
+            />
           </div>
+        )}
 
-          {/* 时间周期 */}
-          <div className="mb-8">
-            <label className="block text-sm text-neutral-400 mb-3 flex items-center gap-2">
-              <Clock size={16} className="text-cyan-400" />
-              时间周期
-            </label>
-            <div className="flex gap-2">
-              {TIMEFRAMES.map((tf) => (
-                <button
-                  key={tf.key}
-                  onClick={() => setTimeframe(tf.key)}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    timeframe === tf.key
-                      ? 'bg-cyan-500 text-black'
-                      : 'bg-white/5 text-neutral-300 hover:bg-white/10'
-                  }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
+        {isAuthenticated && (
+          <>
+            {/* 控制面板 */}
+            <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="text-sm text-neutral-400">
+                  每次生成消耗 <span className="text-cyan-400 font-semibold">10 积分</span>
+                </div>
+                <div className="text-sm px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
+                  我的积分: {user?.points ?? 0}
+                </div>
+              </div>
+
+              {/* 币种选择 */}
+              <div className="mb-6">
+                <label className="block text-sm text-neutral-400 mb-3 flex items-center gap-2">
+                  <Activity size={16} className="text-cyan-400" />
+                  选择币种
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {SYMBOLS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSymbol(s)}
+                      className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        symbol === s
+                          ? 'bg-cyan-500 text-black'
+                          : 'bg-white/5 text-neutral-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {s.split('/')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 时间周期 */}
+              <div className="mb-8">
+                <label className="block text-sm text-neutral-400 mb-3 flex items-center gap-2">
+                  <Clock size={16} className="text-cyan-400" />
+                  时间周期
+                </label>
+                <div className="flex gap-2">
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.key}
+                      onClick={() => setTimeframe(tf.key)}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        timeframe === tf.key
+                          ? 'bg-cyan-500 text-black'
+                          : 'bg-white/5 text-neutral-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 生成按钮 */}
+              <button
+                onClick={handleGenerate}
+                disabled={loading || (user?.points ?? 0) < 10}
+                className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-base transition-colors flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    分析中...
+                  </>
+                ) : (user?.points ?? 0) < 10 ? (
+                  <>
+                    <DollarSign className="w-5 h-5" />
+                    积分不足（需 10 积分）
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-5 h-5" />
+                    生成策略（-10 积分）
+                  </>
+                )}
+              </button>
+
+              {error && (
+                <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                  {error}
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* 生成按钮 */}
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/50 text-black font-semibold text-base transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                分析中...
-              </>
-            ) : (
-              <>
-                <Brain className="w-5 h-5" />
-                生成策略
-              </>
+            {/* 结果展示 */}
+            {result && (
+              <div className="space-y-6">
+                {/* 最佳信号 */}
+                {result.best_signal ? (
+                  <div className={`glass rounded-2xl p-6 border ${getDirectionLabel(result.best_signal.direction).color}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <Zap className="w-6 h-6" />
+                      <h2 className="text-xl font-bold">最优信号 — {STRATEGY_NAMES[result.best_signal.strategy] || result.best_signal.strategy}</h2>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <div className="text-xs text-neutral-400 mb-1">方向</div>
+                        <div className="text-lg font-semibold">{getDirectionLabel(result.best_signal.direction).text}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-neutral-400 mb-1">置信度</div>
+                        <div className="text-lg font-semibold">{(result.best_signal.confidence * 100).toFixed(1)}%</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-neutral-400 mb-1">盈亏比</div>
+                        <div className="text-lg font-semibold">{result.best_signal.rr_ratio?.toFixed(2) || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-neutral-400 mb-1">当前价</div>
+                        <div className="text-lg font-semibold">${result.symbol ? '' : ''}{result.best_signal.entry_price}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="bg-black/20 rounded-xl p-3">
+                        <div className="text-xs text-neutral-400 mb-1 flex items-center gap-1"><Target size={12}/> 建议入场</div>
+                        <div className="text-xl font-bold">${result.best_signal.entry_price}</div>
+                      </div>
+                      <div className="bg-black/20 rounded-xl p-3">
+                        <div className="text-xs text-neutral-400 mb-1 flex items-center gap-1"><ShieldAlert size={12}/> 止损位</div>
+                        <div className="text-xl font-bold text-red-400">${result.best_signal.stop_loss}</div>
+                      </div>
+                      <div className="bg-black/20 rounded-xl p-3">
+                        <div className="text-xs text-neutral-400 mb-1 flex items-center gap-1"><TrendingUp size={12}/> 止盈位</div>
+                        <div className="text-xl font-bold text-green-400">${result.best_signal.take_profit}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="glass rounded-2xl p-8 border border-white/10 text-center">
+                    <BarChart3 className="w-12 h-12 text-neutral-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-white mb-2">当前市场暂无明确交易信号</h3>
+                    <p className="text-neutral-400 text-sm">4套策略均未触发入场条件，建议观望或切换币种/周期再试</p>
+                  </div>
+                )}
+
+                {/* 4套策略详情 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(result.strategies || {}).map(([name, signals]) => {
+                    const dirInfo = getDirectionLabel(signals[0]?.direction);
+                    return (
+                      <div key={name} className="glass rounded-xl p-5 border border-white/10">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-cyan-400" />
+                            <h4 className="font-semibold text-white">{STRATEGY_NAMES[name] || name}</h4>
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-neutral-400">
+                            {signals.length} 个信号
+                          </span>
+                        </div>
+                        {signals.length === 0 ? (
+                          <p className="text-sm text-neutral-500">当前暂无信号 — 条件未满足</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {signals.map((s, i) => (
+                              <div key={i} className={`text-sm p-3 rounded-lg border ${dirInfo.color}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium">{dirInfo.text}</span>
+                                  <span className="text-xs opacity-80">置信度 {(s.confidence * 100).toFixed(1)}%</span>
+                                </div>
+                                <div className="text-xs opacity-80 grid grid-cols-3 gap-2 mt-2">
+                                  <div>入场 <span className="text-white">${s.entry_price}</span></div>
+                                  <div>止损 <span className="text-white">${s.stop_loss}</span></div>
+                                  <div>止盈 <span className="text-white">${s.take_profit}</span></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-          </button>
-
-          {error && (
-            <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* 结果展示 */}
-        {result && (
-          <div className="space-y-6">
-            {/* 趋势卡片 */}
-            <div className={`glass rounded-2xl p-6 border ${getTrendColor(result.trend)}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-black/30 flex items-center justify-center">
-                    {getTrendIcon(result.trend)}
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{result.trend}</p>
-                    <p className="text-sm opacity-80">趋势判断</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold">{result.trend_score}</p>
-                  <p className="text-sm opacity-80">信心指数</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 关键指标 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="glass rounded-xl p-4 border border-white/10 text-center">
-                <p className="text-xs text-neutral-400 mb-1">当前价格</p>
-                <p className="text-lg font-semibold text-white">${result.current_price.toLocaleString()}</p>
-              </div>
-              <div className="glass rounded-xl p-4 border border-white/10 text-center">
-                <p className="text-xs text-neutral-400 mb-1">RSI</p>
-                <p className={`text-lg font-semibold ${result.rsi > 70 ? 'text-red-400' : result.rsi < 30 ? 'text-green-400' : 'text-white'}`}>
-                  {result.rsi}
-                </p>
-              </div>
-              <div className="glass rounded-xl p-4 border border-white/10 text-center">
-                <p className="text-xs text-neutral-400 mb-1">MA7</p>
-                <p className="text-lg font-semibold text-white">${result.ma7.toLocaleString()}</p>
-              </div>
-              <div className="glass rounded-xl p-4 border border-white/10 text-center">
-                <p className="text-xs text-neutral-400 mb-1">MA25</p>
-                <p className="text-lg font-semibold text-white">${result.ma25.toLocaleString()}</p>
-              </div>
-            </div>
-
-            {/* 价格走势 + MA 图表 */}
-            <div className="glass rounded-2xl p-6 border border-white/10">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <BarChart3 size={18} className="text-cyan-400" />
-                价格走势 & 移动平均线
-              </h3>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={result.chart_data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis 
-                      dataKey="time" 
-                      tickFormatter={formatChartTime} 
-                      stroke="#525252" 
-                      tick={{ fill: '#737373', fontSize: 10 }} 
-                      minTickGap={30}
-                    />
-                    <YAxis 
-                      stroke="#525252" 
-                      tick={{ fill: '#737373', fontSize: 10 }} 
-                      domain={['auto', 'auto']}
-                      tickFormatter={(v) => `$${v.toLocaleString()}`}
-                      width={60}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="price" 
-                      stroke="#22d3ee" 
-                      strokeWidth={2}
-                      fill="url(#priceGradient)" 
-                      name="价格"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="ma7" 
-                      stroke="#f59e0b" 
-                      strokeWidth={1.5} 
-                      dot={false} 
-                      name="MA7"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="ma25" 
-                      stroke="#a855f7" 
-                      strokeWidth={1.5} 
-                      dot={false} 
-                      name="MA25"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex items-center justify-center gap-6 mt-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-1 rounded bg-cyan-400" />
-                  <span className="text-neutral-400">价格</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-1 rounded bg-amber-500" />
-                  <span className="text-neutral-400">MA7</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-1 rounded bg-purple-500" />
-                  <span className="text-neutral-400">MA25</span>
-                </div>
-              </div>
-            </div>
-
-            {/* RSI 图表 */}
-            <div className="glass rounded-2xl p-6 border border-white/10">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <Activity size={18} className="text-cyan-400" />
-                RSI 指标
-              </h3>
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={result.chart_data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis 
-                      dataKey="time" 
-                      tickFormatter={formatChartTime} 
-                      stroke="#525252" 
-                      tick={{ fill: '#737373', fontSize: 10 }} 
-                      minTickGap={30}
-                    />
-                    <YAxis 
-                      stroke="#525252" 
-                      tick={{ fill: '#737373', fontSize: 10 }} 
-                      domain={[0, 100]}
-                      width={30}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" />
-                    <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" />
-                    <Line 
-                      type="monotone" 
-                      dataKey="rsi" 
-                      stroke="#f472b6" 
-                      strokeWidth={1.5} 
-                      dot={false} 
-                      name="RSI"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex items-center justify-between mt-4 text-xs text-neutral-500">
-                <span className="text-green-400">30 超卖</span>
-                <span>50 中性</span>
-                <span className="text-red-400">70 超买</span>
-              </div>
-            </div>
-
-            {/* 支撑阻力 */}
-            <div className="glass rounded-2xl p-6 border border-white/10">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <Target size={18} className="text-cyan-400" />
-                关键价位
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                  <p className="text-xs text-green-400 mb-1">支撑位</p>
-                  <p className="text-xl font-bold text-white">${result.support.toLocaleString()}</p>
-                </div>
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <p className="text-xs text-red-400 mb-1">阻力位</p>
-                  <p className="text-xl font-bold text-white">${result.resistance.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 策略建议 */}
-            <div className="glass rounded-2xl p-6 border border-white/10">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <Brain size={18} className="text-cyan-400" />
-                策略建议
-              </h3>
-              <p className="text-neutral-300 leading-relaxed mb-6">{result.suggestion}</p>
-              
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                  <p className="text-xs text-cyan-400 mb-1 flex items-center justify-center gap-1">
-                    <DollarSign size={12} /> 建议入场
-                  </p>
-                  <p className="text-lg font-bold text-white">${result.entry.toLocaleString()}</p>
-                </div>
-                <div className="text-center p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <p className="text-xs text-red-400 mb-1">止损位</p>
-                  <p className="text-lg font-bold text-white">${result.stop_loss.toLocaleString()}</p>
-                </div>
-                <div className="text-center p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                  <p className="text-xs text-green-400 mb-1">止盈位</p>
-                  <p className="text-lg font-bold text-white">${result.take_profit.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 风险等级 */}
-            <div className="flex items-center justify-between glass rounded-xl p-5 border border-white/10">
-              <div className="flex items-center gap-3">
-                <ShieldAlert className="w-5 h-5 text-neutral-400" />
-                <span className="text-neutral-300">风险等级</span>
-              </div>
-              <span className={`px-4 py-1.5 rounded-full text-sm font-semibold ${getRiskColor(result.risk_level)}`}>
-                {result.risk_level}
-              </span>
-            </div>
-
-            {/* 生成时间 */}
-            <p className="text-center text-xs text-neutral-500">
-              生成时间: {new Date(result.generated_at).toLocaleString('zh-CN')}
-            </p>
-          </div>
+          </>
         )}
       </div>
     </div>
