@@ -61,7 +61,7 @@ export default function Community() {
   const [showPostModal, setShowPostModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', content: '', section_id: 1 });
-  const [prices, setPrices] = useState({ btc: 0, eth: 0 });
+  const [prices, setPrices] = useState<{ btc: number; eth: number; btcChange: number; ethChange: number }>({ btc: 0, eth: 0, btcChange: 0, ethChange: 0 });
   
   // 帖子详情
   const [detailPost, setDetailPost] = useState<PostDetail | null>(null);
@@ -73,6 +73,12 @@ export default function Community() {
     fetchPosts();
     fetchPrices();
   }, [activeSection, sort]);
+
+  useEffect(() => {
+    fetchPrices();
+    const timer = setInterval(fetchPrices, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchSections = async () => {
     try {
@@ -101,7 +107,20 @@ export default function Community() {
   };
 
   const fetchPrices = async () => {
-    setPrices({ btc: 71234.5, eth: 3456.2 });
+    try {
+      const res = await api.market.tickers();
+      const tickers = res.data || [];
+      const btc = tickers.find((t: any) => t.symbol === 'BTC/USDT');
+      const eth = tickers.find((t: any) => t.symbol === 'ETH/USDT');
+      setPrices({
+        btc: btc?.price || 0,
+        eth: eth?.price || 0,
+        btcChange: btc?.change_percent_24h || 0,
+        ethChange: eth?.change_percent_24h || 0,
+      });
+    } catch (e) {
+      console.error('获取行情失败', e);
+    }
   };
 
   const handleCheckIn = async () => {
@@ -486,11 +505,21 @@ export default function Community() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-neutral-400">BTC/USDT</span>
-                  <span className="text-sm font-medium text-white">${prices.btc.toLocaleString()}</span>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-white">${prices.btc ? prices.btc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--'}</span>
+                    <span className={`text-xs ml-2 ${prices.btcChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {prices.btcChange >= 0 ? '+' : ''}{prices.btcChange}%
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-neutral-400">ETH/USDT</span>
-                  <span className="text-sm font-medium text-white">${prices.eth.toLocaleString()}</span>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-white">${prices.eth ? prices.eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--'}</span>
+                    <span className={`text-xs ml-2 ${prices.ethChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {prices.ethChange >= 0 ? '+' : ''}{prices.ethChange}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -68,6 +68,11 @@ export const api = {
     syncAll: () => apiRequest('/copy-engine/sync-all', { method: 'POST' }),
   },
 
+  // 行情
+  market: {
+    tickers: () => apiRequest('/market/tickers'),
+  },
+
   // 社区
   community: {
     sections: () => apiRequest('/community/sections'),
