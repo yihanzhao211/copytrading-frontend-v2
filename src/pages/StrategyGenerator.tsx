@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   Brain, TrendingUp, Target, ShieldAlert, 
-  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers
+  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,6 +54,40 @@ interface StrategyData {
   analysis: Record<string, AnalysisItem>;
 }
 
+interface BacktestStrategyStat {
+  signals: number;
+  win_rate: number;
+  avg_pnl: number;
+}
+
+interface BacktestSummary {
+  win_rate: number;
+  profit_factor: number | null;
+  avg_win: number;
+  avg_loss: number;
+  max_drawdown: number;
+  sharpe_ratio: number;
+  total_return: number;
+}
+
+interface BacktestBreakdown {
+  wins: number;
+  losses: number;
+  timeouts: number;
+  opens: number;
+}
+
+interface BacktestData {
+  symbol: string;
+  timeframe: string;
+  days: number;
+  total_signals: number;
+  breakdown: BacktestBreakdown;
+  strategies: Record<string, BacktestStrategyStat>;
+  summary: BacktestSummary;
+  remaining_points?: number;
+}
+
 export default function StrategyGenerator() {
   const { isAuthenticated, refreshUser, user, login } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -62,6 +96,9 @@ export default function StrategyGenerator() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<StrategyData | null>(null);
   const [error, setError] = useState('');
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestResult, setBacktestResult] = useState<BacktestData | null>(null);
+  const [backtestError, setBacktestError] = useState('');
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -82,6 +119,28 @@ export default function StrategyGenerator() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBacktest = async () => {
+    setBacktestLoading(true);
+    setBacktestError('');
+    try {
+      const res = await api.strategy.backtest(symbol, timeframe, 30);
+      setBacktestResult(res.data);
+      if (user && res.data.remaining_points !== undefined) {
+        login({ ...user, points: res.data.remaining_points });
+      }
+    } catch (e: any) {
+      if (e.message?.includes('无效的认证令牌') || e.message?.includes('认证')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      } else {
+        setBacktestError(e.message || '回测运行失败，请稍后重试');
+      }
+    } finally {
+      setBacktestLoading(false);
     }
   };
 
@@ -354,6 +413,149 @@ export default function StrategyGenerator() {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* 历史回测 */}
+                <div className="glass rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <History className="w-6 h-6 text-cyan-400" />
+                      <h2 className="text-xl font-bold text-white">近30天历史回测</h2>
+                    </div>
+                    <button
+                      onClick={handleBacktest}
+                      disabled={backtestLoading || (user?.points ?? 0) < 10}
+                      className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
+                    >
+                      {backtestLoading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> 回测中...</>
+                      ) : (user?.points ?? 0) < 10 ? (
+                        <><DollarSign className="w-4 h-4" /> 积分不足</>
+                      ) : (
+                        <><History className="w-4 h-4" /> 运行回测（-10积分）</>
+                      )}
+                    </button>
+                  </div>
+
+                  {backtestError && (
+                    <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      {backtestError}
+                    </div>
+                  )}
+
+                  {backtestResult ? (
+                    <div className="space-y-6">
+                      {/* 总览统计 */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="bg-white/5 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-white">{backtestResult.total_signals}</div>
+                          <div className="text-xs text-neutral-400 mt-1">总信号数</div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-4 text-center">
+                          <div className={`text-2xl font-bold ${backtestResult.summary.win_rate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                            {backtestResult.summary.win_rate}%
+                          </div>
+                          <div className="text-xs text-neutral-400 mt-1">胜率</div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-cyan-400">
+                            {backtestResult.summary.profit_factor ?? '—'}
+                          </div>
+                          <div className="text-xs text-neutral-400 mt-1">盈亏比</div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-4 text-center">
+                          <div className={`text-2xl font-bold ${backtestResult.summary.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {backtestResult.summary.total_return > 0 ? '+' : ''}{backtestResult.summary.total_return}%
+                          </div>
+                          <div className="text-xs text-neutral-400 mt-1">累计收益</div>
+                        </div>
+                      </div>
+
+                      {/* 胜负分布 */}
+                      <div>
+                        <h3 className="text-sm font-medium text-neutral-300 mb-2">交易结果分布</h3>
+                        <div className="flex h-4 rounded-full overflow-hidden bg-white/5">
+                          {backtestResult.total_signals > 0 && (
+                            <>
+                              <div
+                                className="bg-green-500"
+                                style={{ width: `${(backtestResult.breakdown.wins / backtestResult.total_signals) * 100}%` }}
+                              />
+                              <div
+                                className="bg-red-500"
+                                style={{ width: `${(backtestResult.breakdown.losses / backtestResult.total_signals) * 100}%` }}
+                              />
+                              <div
+                                className="bg-yellow-500"
+                                style={{ width: `${(backtestResult.breakdown.timeouts / backtestResult.total_signals) * 100}%` }}
+                              />
+                            </>
+                          )}
+                        </div>
+                        <div className="flex gap-4 mt-2 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                            <span className="text-neutral-400">盈利 <span className="text-white">{backtestResult.breakdown.wins}</span></span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                            <span className="text-neutral-400">亏损 <span className="text-white">{backtestResult.breakdown.losses}</span></span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                            <span className="text-neutral-400">超时/持仓 <span className="text-white">{backtestResult.breakdown.timeouts + backtestResult.breakdown.opens}</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 详细指标 */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-lg bg-white/5">
+                          <div className="text-xs text-neutral-400">平均盈利</div>
+                          <div className="text-lg font-semibold text-green-400">+{backtestResult.summary.avg_win}%</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-white/5">
+                          <div className="text-xs text-neutral-400">平均亏损</div>
+                          <div className="text-lg font-semibold text-red-400">{backtestResult.summary.avg_loss}%</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-white/5">
+                          <div className="text-xs text-neutral-400">最大回撤</div>
+                          <div className="text-lg font-semibold text-red-400">-{backtestResult.summary.max_drawdown}%</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-white/5">
+                          <div className="text-xs text-neutral-400">夏普比率</div>
+                          <div className="text-lg font-semibold text-white">{backtestResult.summary.sharpe_ratio}</div>
+                        </div>
+                      </div>
+
+                      {/* 各策略统计 */}
+                      <div>
+                        <h3 className="text-sm font-medium text-neutral-300 mb-3">各策略表现</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {Object.entries(backtestResult.strategies).map(([name, stat]) => (
+                            <div key={name} className="p-3 rounded-lg bg-white/5 flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium text-white">{STRATEGY_NAMES[name] || name}</div>
+                                <div className="text-xs text-neutral-400">{stat.signals} 个信号</div>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-sm font-semibold ${stat.win_rate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {stat.win_rate}%
+                                </div>
+                                <div className="text-xs text-neutral-400">胜率</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-neutral-500">
+                      <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                      <p>点击上方按钮，运行近 30 天历史回测</p>
+                      <p className="text-xs mt-1 opacity-70">基于真实 OHLCV 数据，模拟 4 套策略的历史表现</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

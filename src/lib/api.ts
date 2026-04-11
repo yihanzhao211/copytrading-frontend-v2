@@ -77,6 +77,8 @@ export const api = {
   strategy: {
     generate: (symbol: string, timeframe: string) =>
       apiRequest('/strategy/generate', { method: 'POST', body: JSON.stringify({ symbol, timeframe }) }),
+    backtest: (symbol: string, timeframe: string, days?: number) =>
+      apiRequest('/strategy/backtest', { method: 'POST', body: JSON.stringify({ symbol, timeframe, days }) }),
   },
 
   // 会员
