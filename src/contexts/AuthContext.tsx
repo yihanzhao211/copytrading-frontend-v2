@@ -8,6 +8,7 @@ interface User {
   exp?: number;
   points?: number;
   membership_expires_at?: string | null;
+  role?: string;
 }
 
 interface AuthContextType {

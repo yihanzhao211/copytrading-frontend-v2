@@ -371,12 +371,14 @@ export default function WalletPage() {
                         <td className="p-4">
                           {record.status === 'pending' && (
                             <div className="flex gap-2">
-                              <button
-                                onClick={() => handleConfirm(record)}
-                                className="px-3 py-1 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-medium"
-                              >
-                                确认到账
-                              </button>
+                              {user?.role === 'admin' && (
+                                <button
+                                  onClick={() => handleConfirm(record)}
+                                  className="px-3 py-1 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-medium"
+                                >
+                                  确认到账
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleCancel(record)}
                                 className="px-3 py-1 rounded-lg bg-neutral-500/10 text-neutral-400 hover:bg-neutral-500/20 text-xs font-medium"

@@ -7,7 +7,7 @@ import {
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (user: { email: string; name: string; username?: string; level?: number; exp?: number; points?: number; membership_expires_at?: string | null }) => void;
+  onSuccess: (user: { email: string; name: string; username?: string; level?: number; exp?: number; points?: number; membership_expires_at?: string | null; role?: string }) => void;
 }
 
 // API 配置
@@ -83,6 +83,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           exp: data.user.exp,
           points: data.user.points,
           membership_expires_at: data.user.membership_expires_at || null,
+          role: data.user.role || 'user',
         }));
 
         onSuccess({
@@ -93,6 +94,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           exp: data.user.exp,
           points: data.user.points,
           membership_expires_at: data.user.membership_expires_at || null,
+          role: data.user.role || 'user',
         });
       } else {
         // 调用后端注册API
@@ -139,6 +141,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             exp: loginData.user.exp,
             points: loginData.user.points,
             membership_expires_at: loginData.user.membership_expires_at || null,
+            role: loginData.user.role || 'user',
           }));
 
           onSuccess({
@@ -149,6 +152,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             exp: loginData.user.exp,
             points: loginData.user.points,
             membership_expires_at: loginData.user.membership_expires_at || null,
+            role: loginData.user.role || 'user',
           });
         } else {
           // 注册成功但登录失败，提示用户手动登录
