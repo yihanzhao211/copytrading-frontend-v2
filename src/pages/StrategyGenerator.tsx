@@ -189,7 +189,7 @@ export default function StrategyGenerator() {
         localStorage.removeItem('user');
         window.location.reload();
       } else {
-        setWickError(e.message || '插针分析失败，请稍后重试');
+        setWickError(e.message || '针型探测分析失败，请稍后重试');
       }
     } finally {
       setWickLoading(false);
@@ -615,7 +615,7 @@ export default function StrategyGenerator() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <ActivityIcon className="w-6 h-6 text-cyan-400" />
-                      <h2 className="text-xl font-bold text-white">插针分析</h2>
+                      <h2 className="text-xl font-bold text-white">针型探测</h2>
                     </div>
                     <button
                       onClick={handleWickAnalysis}
@@ -707,8 +707,8 @@ export default function StrategyGenerator() {
                   ) : (
                     <div className="py-8 text-center text-neutral-500">
                       <ActivityIcon className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                      <p>点击上方按钮，分析历史插针规律</p>
-                      <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在插针价位与概率</p>
+                      <p>点击上方按钮，运行针型探测分析</p>
+                      <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在针型价位与概率</p>
                     </div>
                   )}
                 </div>
