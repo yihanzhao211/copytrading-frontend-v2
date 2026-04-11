@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   Brain, TrendingUp, Target, ShieldAlert, 
-  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History
+  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History, Activity as ActivityIcon, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -88,6 +88,33 @@ interface BacktestData {
   remaining_points?: number;
 }
 
+interface WickLevel {
+  price: number;
+  distance_pct: number;
+  probability: number;
+  score: number;
+  sample_count: number;
+  avg_wick: number;
+  max_wick: number;
+}
+
+interface WickAnalysisData {
+  symbol: string;
+  timeframe: string;
+  current_price: number;
+  rounding_step: number;
+  upper_levels: WickLevel[];
+  lower_levels: WickLevel[];
+  stats: {
+    total_candles: number;
+    significant_upper_wicks: number;
+    significant_lower_wicks: number;
+    avg_upper_wick_pct: number;
+    avg_lower_wick_pct: number;
+  };
+  remaining_points?: number;
+}
+
 export default function StrategyGenerator() {
   const { isAuthenticated, refreshUser, user, login } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -99,6 +126,9 @@ export default function StrategyGenerator() {
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestResult, setBacktestResult] = useState<BacktestData | null>(null);
   const [backtestError, setBacktestError] = useState('');
+  const [wickLoading, setWickLoading] = useState(false);
+  const [wickResult, setWickResult] = useState<WickAnalysisData | null>(null);
+  const [wickError, setWickError] = useState('');
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -141,6 +171,28 @@ export default function StrategyGenerator() {
       }
     } finally {
       setBacktestLoading(false);
+    }
+  };
+
+  const handleWickAnalysis = async () => {
+    setWickLoading(true);
+    setWickError('');
+    try {
+      const res = await api.strategy.wickAnalysis(symbol, timeframe);
+      setWickResult(res.data);
+      if (user && res.data.remaining_points !== undefined) {
+        login({ ...user, points: res.data.remaining_points });
+      }
+    } catch (e: any) {
+      if (e.message?.includes('无效的认证令牌') || e.message?.includes('认证')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      } else {
+        setWickError(e.message || '插针分析失败，请稍后重试');
+      }
+    } finally {
+      setWickLoading(false);
     }
   };
 
@@ -554,6 +606,109 @@ export default function StrategyGenerator() {
                       <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-50" />
                       <p>点击上方按钮，运行近 30 天历史回测</p>
                       <p className="text-xs mt-1 opacity-70">基于真实 OHLCV 数据，模拟 4 套策略的历史表现</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 插针分析 */}
+                <div className="glass rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <ActivityIcon className="w-6 h-6 text-cyan-400" />
+                      <h2 className="text-xl font-bold text-white">插针分析</h2>
+                    </div>
+                    <button
+                      onClick={handleWickAnalysis}
+                      disabled={wickLoading || (user?.points ?? 0) < 10}
+                      className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
+                    >
+                      {wickLoading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> 分析中...</>
+                      ) : (user?.points ?? 0) < 10 ? (
+                        <><DollarSign className="w-4 h-4" /> 积分不足</>
+                      ) : (
+                        <><ActivityIcon className="w-4 h-4" /> 运行分析（-10积分）</>
+                      )}
+                    </button>
+                  </div>
+
+                  {wickError && (
+                    <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      {wickError}
+                    </div>
+                  )}
+
+                  {wickResult ? (
+                    <div className="space-y-5">
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
+                        <div>
+                          <div className="text-sm text-neutral-400">当前价格</div>
+                          <div className="text-2xl font-bold text-white">${wickResult.current_price}</div>
+                        </div>
+                        <div className="text-right text-xs text-neutral-500">
+                          <div>分析K线数: {wickResult.stats.total_candles}</div>
+                          <div>上插针: {wickResult.stats.significant_upper_wicks} 次</div>
+                          <div>下插针: {wickResult.stats.significant_lower_wicks} 次</div>
+                        </div>
+                      </div>
+
+                      {/* 上方插针价位 */}
+                      <div>
+                        <h3 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-2">
+                          <ArrowUp className="w-4 h-4 text-green-400" />
+                          上方潜在插针价位
+                        </h3>
+                        {wickResult.upper_levels.length === 0 ? (
+                          <p className="text-sm text-neutral-500">暂无显著上方插针阻力位</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {wickResult.upper_levels.map((lvl, idx) => (
+                              <div key={idx} className="p-3 rounded-lg bg-white/5 flex items-center justify-between">
+                                <div>
+                                  <div className="text-base font-semibold text-white">${lvl.price}</div>
+                                  <div className="text-xs text-neutral-400">+{lvl.distance_pct}% · 样本 {lvl.sample_count} 次</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold text-cyan-400">{lvl.score}分</div>
+                                  <div className="text-xs text-neutral-400">概率 {lvl.probability}%</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 下方插针价位 */}
+                      <div>
+                        <h3 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-2">
+                          <ArrowDown className="w-4 h-4 text-red-400" />
+                          下方潜在插针价位
+                        </h3>
+                        {wickResult.lower_levels.length === 0 ? (
+                          <p className="text-sm text-neutral-500">暂无显著下方插针支撑位</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {wickResult.lower_levels.map((lvl, idx) => (
+                              <div key={idx} className="p-3 rounded-lg bg-white/5 flex items-center justify-between">
+                                <div>
+                                  <div className="text-base font-semibold text-white">${lvl.price}</div>
+                                  <div className="text-xs text-neutral-400">-{lvl.distance_pct}% · 样本 {lvl.sample_count} 次</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold text-cyan-400">{lvl.score}分</div>
+                                  <div className="text-xs text-neutral-400">概率 {lvl.probability}%</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-neutral-500">
+                      <ActivityIcon className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                      <p>点击上方按钮，分析历史插针规律</p>
+                      <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在插针价位与概率</p>
                     </div>
                   )}
                 </div>
