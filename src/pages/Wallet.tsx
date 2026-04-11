@@ -27,7 +27,7 @@ interface MembershipInfo {
   pending_orders: number;
 }
 
-const RECHARGE_ADDRESS = 'TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'; // 替换为真实地址
+const RECHARGE_ADDRESS = '0x6c9caa69c0b161e1225b5f5b2ca57118855383ec'; // USDT-BEP20 (BSC)
 
 const monthOptions = [
   { months: 1, label: '1个月', price: 300 },
@@ -115,7 +115,7 @@ export default function WalletPage() {
   const handleRecharge = async () => {
     try {
       setRecharging(true);
-      await api.wallet.recharge({ months: selectedMonths, method: 'usdt_trc20' });
+      await api.wallet.recharge({ months: selectedMonths, method: 'usdt_bep20' });
       alert('会员购买订单已创建，请在转账后等待确认');
       await fetchMembership();
       await fetchRecords();
@@ -305,7 +305,7 @@ export default function WalletPage() {
             {/* 充值地址 */}
             <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-neutral-400">转账地址 (USDT-TRC20)</span>
+                <span className="text-sm text-neutral-400">转账地址 (USDT-BEP20)</span>
                 <button
                   onClick={handleCopyAddress}
                   className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
@@ -318,7 +318,7 @@ export default function WalletPage() {
                 {RECHARGE_ADDRESS}
               </div>
               <p className="text-xs text-neutral-500 mt-2">
-                请转账 <span className="text-cyan-400 font-medium">{selectedPlan.price} USDT</span> 到上方地址，转账完成后点击下方按钮创建订单。
+                请转账 <span className="text-cyan-400 font-medium">{selectedPlan.price} USDT</span> 到上方 BSC 地址，转账完成后点击下方按钮创建订单。
               </p>
             </div>
 
