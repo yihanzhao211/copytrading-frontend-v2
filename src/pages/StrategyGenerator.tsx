@@ -230,9 +230,9 @@ export default function StrategyGenerator() {
         ...prev,
         daily_usage: {
           ...prev.daily_usage,
-          strategy_generate: {
-            ...(prev.daily_usage?.strategy_generate || { used: 0, limit: 1, remaining: 0 }),
-            remaining: Math.max(0, (prev.daily_usage?.strategy_generate?.remaining || 0) - 1)
+          scan: {
+            ...(prev.daily_usage?.scan || { used: 0, limit: 20, remaining: 0 }),
+            remaining: Math.max(0, (prev.daily_usage?.scan?.remaining || 0) - 1)
           }
         }
       } : prev);
@@ -343,18 +343,23 @@ export default function StrategyGenerator() {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                 <div className="text-sm text-neutral-400">
                   {membership?.is_member ? (
-                    <span className="text-green-400 font-semibold">会员尊享：功能无限次使用</span>
+                    <span className="text-green-400 font-semibold">会员尊享：策略生成/批量扫描每日共 20 次，回测与针型探测无限次</span>
                   ) : (
                     <>
-                      免费用户每日可生成 <span className="text-cyan-400 font-semibold">1 次</span>策略，
-                      回测与针型探测为 <span className="text-cyan-400 font-semibold">会员专享</span>
+                      免费用户每日可生成 <span className="text-cyan-400 font-semibold">1 次</span>策略（单币种），
+                      批量扫描、回测与针型探测为 <span className="text-cyan-400 font-semibold">会员专享</span>
                     </>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {!membership?.is_member && membership?.daily_usage?.strategy_generate && (
+                  {membership?.daily_usage?.strategy_generate && (
                     <div className="text-xs px-2 py-1 rounded-full bg-white/10 text-neutral-400">
-                      今日剩余: {membership.daily_usage.strategy_generate.remaining} 次
+                      策略生成剩余: {membership.daily_usage.strategy_generate.remaining} 次
+                    </div>
+                  )}
+                  {membership?.is_member && membership?.daily_usage?.scan && (
+                    <div className="text-xs px-2 py-1 rounded-full bg-white/10 text-neutral-400">
+                      批量扫描剩余: {membership.daily_usage.scan.remaining} 次
                     </div>
                   )}
                   <div className="text-sm px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
@@ -412,7 +417,7 @@ export default function StrategyGenerator() {
               {/* 生成按钮 */}
               <button
                 onClick={handleGenerate}
-                disabled={loading || (!membership?.is_member && (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0) || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
+                disabled={loading || (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0 || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
                 className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-base transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -420,15 +425,15 @@ export default function StrategyGenerator() {
                     <Loader2 className="w-5 h-5 animate-spin" />
                     分析中...
                   </>
-                ) : membership?.is_member ? (
-                  <>
-                    <Brain className="w-5 h-5" />
-                    生成策略（会员免费）
-                  </>
                 ) : (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0 ? (
                   <>
                     <Lock className="w-5 h-5" />
-                    今日次数已用完，开通会员解锁
+                    今日次数已用完，{membership?.is_member ? '请明日再来' : '开通会员解锁'}
+                  </>
+                ) : membership?.is_member ? (
+                  <>
+                    <Brain className="w-5 h-5" />
+                    生成策略（今日剩余 {membership.daily_usage.strategy_generate.remaining} 次）
                   </>
                 ) : (user?.points ?? 0) < 10 ? (
                   <>
@@ -817,19 +822,19 @@ export default function StrategyGenerator() {
                     </div>
                     <button
                       onClick={handleScan}
-                      disabled={scanLoading || (!membership?.is_member && (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0) || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
+                      disabled={scanLoading || !membership?.is_member || (membership?.daily_usage?.scan?.remaining ?? 0) <= 0 || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
                       className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
                     >
                       {scanLoading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> 扫描中...</>
-                      ) : membership?.is_member ? (
-                        <><ScanSearch className="w-4 h-4" /> 一键扫描（会员免费）</>
-                      ) : (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0 ? (
+                      ) : !membership?.is_member ? (
+                        <><Lock className="w-4 h-4" /> 会员专享</>
+                      ) : (membership?.daily_usage?.scan?.remaining ?? 0) <= 0 ? (
                         <><Lock className="w-4 h-4" /> 今日次数已用完</>
                       ) : (user?.points ?? 0) < 10 ? (
                         <><DollarSign className="w-4 h-4" /> 积分不足</>
                       ) : (
-                        <><ScanSearch className="w-4 h-4" /> 一键扫描（-10积分）</>
+                        <><ScanSearch className="w-4 h-4" /> 一键扫描（今日剩余 {membership.daily_usage.scan.remaining} 次）</>
                       )}
                     </button>
                   </div>
@@ -885,8 +890,17 @@ export default function StrategyGenerator() {
                   ) : (
                     <div className="py-8 text-center text-neutral-500">
                       <ScanSearch className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                      <p>点击上方按钮，一键扫描市场机会</p>
-                      <p className="text-xs mt-1 opacity-70">自动分析 Top 20 币种，按信号强度排序</p>
+                      {!membership?.is_member ? (
+                        <>
+                          <p>批量扫描为会员专享功能</p>
+                          <p className="text-xs mt-1 opacity-70">开通会员后可每日批量扫描 20 次</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>点击上方按钮，一键扫描市场机会</p>
+                          <p className="text-xs mt-1 opacity-70">自动分析 Top 20 币种，按信号强度排序</p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
