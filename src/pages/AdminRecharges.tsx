@@ -91,8 +91,6 @@ export default function AdminRecharges() {
     }
   };
 
-  const pendingCount = records.filter(r => r.status === 'pending').length;
-
   return (
     <div className="min-h-screen bg-black pt-24 pb-12">
       {/* 导航栏 */}
