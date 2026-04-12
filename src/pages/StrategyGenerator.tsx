@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Brain, TrendingUp, Target, ShieldAlert, 
   DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History, Activity as ActivityIcon, ArrowUp, ArrowDown
@@ -115,6 +115,11 @@ interface WickAnalysisData {
   remaining_points?: number;
 }
 
+interface MembershipInfo {
+  is_member: boolean;
+  daily_usage: Record<string, { used: number; limit: number; remaining: number }>;
+}
+
 export default function StrategyGenerator() {
   const { isAuthenticated, refreshUser, user, login } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -129,6 +134,18 @@ export default function StrategyGenerator() {
   const [wickLoading, setWickLoading] = useState(false);
   const [wickResult, setWickResult] = useState<WickAnalysisData | null>(null);
   const [wickError, setWickError] = useState('');
+  const [membership, setMembership] = useState<MembershipInfo | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.wallet.get().then((data) => {
+        setMembership({
+          is_member: data.is_member,
+          daily_usage: data.daily_usage || {},
+        });
+      }).catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -287,12 +304,26 @@ export default function StrategyGenerator() {
           <>
             {/* 控制面板 */}
             <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 mb-8">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                 <div className="text-sm text-neutral-400">
-                  每次生成消耗 <span className="text-cyan-400 font-semibold">10 积分</span>
+                  {membership?.is_member ? (
+                    <span className="text-green-400 font-semibold">会员尊享：功能无限次使用</span>
+                  ) : (
+                    <>
+                      免费用户每日可生成 <span className="text-cyan-400 font-semibold">1 次</span>策略，
+                      回测与针型探测为 <span className="text-cyan-400 font-semibold">会员专享</span>
+                    </>
+                  )}
                 </div>
-                <div className="text-sm px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
-                  我的积分: {user?.points ?? 0}
+                <div className="flex items-center gap-2">
+                  {!membership?.is_member && membership?.daily_usage?.strategy_generate && (
+                    <div className="text-xs px-2 py-1 rounded-full bg-white/10 text-neutral-400">
+                      今日剩余: {membership.daily_usage.strategy_generate.remaining} 次
+                    </div>
+                  )}
+                  <div className="text-sm px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
+                    我的积分: {user?.points ?? 0}
+                  </div>
                 </div>
               </div>
 
@@ -345,13 +376,23 @@ export default function StrategyGenerator() {
               {/* 生成按钮 */}
               <button
                 onClick={handleGenerate}
-                disabled={loading || (user?.points ?? 0) < 10}
+                disabled={loading || (!membership?.is_member && (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0) || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
                 className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-base transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     分析中...
+                  </>
+                ) : membership?.is_member ? (
+                  <>
+                    <Brain className="w-5 h-5" />
+                    生成策略（会员免费）
+                  </>
+                ) : (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0 ? (
+                  <>
+                    <Lock className="w-5 h-5" />
+                    今日次数已用完，开通会员解锁
                   </>
                 ) : (user?.points ?? 0) < 10 ? (
                   <>
@@ -476,15 +517,15 @@ export default function StrategyGenerator() {
                     </div>
                     <button
                       onClick={handleBacktest}
-                      disabled={backtestLoading || (user?.points ?? 0) < 10}
+                      disabled={backtestLoading || !membership?.is_member || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
                       className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
                     >
                       {backtestLoading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> 回测中...</>
-                      ) : (user?.points ?? 0) < 10 ? (
-                        <><DollarSign className="w-4 h-4" /> 积分不足</>
+                      ) : membership?.is_member ? (
+                        <><History className="w-4 h-4" /> 运行回测（会员免费）</>
                       ) : (
-                        <><History className="w-4 h-4" /> 运行回测（-10积分）</>
+                        <><Lock className="w-4 h-4" /> 会员专享</>
                       )}
                     </button>
                   </div>
@@ -604,8 +645,17 @@ export default function StrategyGenerator() {
                   ) : (
                     <div className="py-8 text-center text-neutral-500">
                       <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                      <p>点击上方按钮，运行近 30 天历史回测</p>
-                      <p className="text-xs mt-1 opacity-70">基于真实 OHLCV 数据，模拟 4 套策略的历史表现</p>
+                      {!membership?.is_member ? (
+                        <>
+                          <p>历史回测为会员专享功能</p>
+                          <p className="text-xs mt-1 opacity-70">开通会员后可无限次运行策略回测与针型探测</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>点击上方按钮，运行近 30 天历史回测</p>
+                          <p className="text-xs mt-1 opacity-70">基于真实 OHLCV 数据，模拟 4 套策略的历史表现</p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -619,15 +669,15 @@ export default function StrategyGenerator() {
                     </div>
                     <button
                       onClick={handleWickAnalysis}
-                      disabled={wickLoading || (user?.points ?? 0) < 10}
+                      disabled={wickLoading || !membership?.is_member || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
                       className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
                     >
                       {wickLoading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> 分析中...</>
-                      ) : (user?.points ?? 0) < 10 ? (
-                        <><DollarSign className="w-4 h-4" /> 积分不足</>
+                      ) : membership?.is_member ? (
+                        <><ActivityIcon className="w-4 h-4" /> 运行分析（会员免费）</>
                       ) : (
-                        <><ActivityIcon className="w-4 h-4" /> 运行分析（-10积分）</>
+                        <><Lock className="w-4 h-4" /> 会员专享</>
                       )}
                     </button>
                   </div>
@@ -707,8 +757,17 @@ export default function StrategyGenerator() {
                   ) : (
                     <div className="py-8 text-center text-neutral-500">
                       <ActivityIcon className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                      <p>点击上方按钮，运行针型探测分析</p>
-                      <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在针型价位与概率</p>
+                      {!membership?.is_member ? (
+                        <>
+                          <p>针型探测为会员专享功能</p>
+                          <p className="text-xs mt-1 opacity-70">开通会员后可无限次运行针型探测分析</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>点击上方按钮，运行针型探测分析</p>
+                          <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在针型价位与概率</p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
