@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Crown, ArrowLeft, LogOut, Loader2,
   CheckCircle, XCircle, Clock, Copy,
-  History, Sparkles
+  History, Sparkles, Upload, ImageIcon, X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -15,6 +15,7 @@ interface RechargeRecord {
   tx_hash: string | null;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled';
   note: string | null;
+  screenshot_url: string | null;
   created_at: string;
   confirmed_at: string | null;
 }
@@ -80,6 +81,10 @@ export default function WalletPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'buy' | 'records'>('buy');
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMembership = async () => {
     try {
@@ -113,10 +118,15 @@ export default function WalletPage() {
   const selectedPlan = monthOptions.find(p => p.months === selectedMonths) || monthOptions[0];
 
   const handleRecharge = async () => {
+    if (!screenshotDataUrl) {
+      alert('请先上传转账截图');
+      return;
+    }
     try {
       setRecharging(true);
-      await api.wallet.recharge({ months: selectedMonths, method: 'usdt_bep20' });
+      await api.wallet.recharge({ months: selectedMonths, method: 'usdt_bep20', screenshot_url: screenshotDataUrl });
       alert('会员购买订单已创建，请在转账后等待确认');
+      setScreenshotDataUrl(null);
       await fetchMembership();
       await fetchRecords();
       setActiveTab('records');
@@ -125,6 +135,30 @@ export default function WalletPage() {
     } finally {
       setRecharging(false);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('请上传图片文件');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过 5MB');
+      return;
+    }
+    setUploadingImage(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setScreenshotDataUrl(reader.result as string);
+      setUploadingImage(false);
+    };
+    reader.onerror = () => {
+      alert('图片读取失败');
+      setUploadingImage(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCopyAddress = () => {
@@ -318,14 +352,51 @@ export default function WalletPage() {
                 {RECHARGE_ADDRESS}
               </div>
               <p className="text-xs text-neutral-500 mt-2">
-                请转账 <span className="text-cyan-400 font-medium">{selectedPlan.price} USDT</span> 到上方 BSC 地址，转账完成后点击下方按钮创建订单。
+                请转账 <span className="text-cyan-400 font-medium">{selectedPlan.price} USDT</span> 到上方 BSC 地址，上传转账截图后创建订单。
               </p>
+            </div>
+
+            {/* 截图上传 */}
+            <div className="mb-6">
+              <label className="block text-sm text-neutral-400 mb-2">转账截图 <span className="text-red-400">*</span></label>
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {!screenshotDataUrl ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="w-full py-8 rounded-xl border-2 border-dashed border-white/20 hover:border-cyan-400/50 hover:bg-white/5 transition-colors flex flex-col items-center gap-2 text-neutral-400"
+                >
+                  {uploadingImage ? (
+                    <><Loader2 size={24} className="animate-spin" /> <span>处理中...</span></>
+                  ) : (
+                    <><Upload size={24} /> <span>点击上传转账截图</span></>
+                  )}
+                  <span className="text-xs opacity-60">支持 JPG、PNG，最大 5MB</span>
+                </button>
+              ) : (
+                <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5 w-fit">
+                  <img src={screenshotDataUrl} alt="转账截图" className="max-h-48 object-contain" />
+                  <button
+                    onClick={() => setScreenshotDataUrl(null)}
+                    className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80"
+                    title="删除"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 购买按钮 */}
             <button
               onClick={handleRecharge}
-              disabled={recharging}
+              disabled={recharging || !screenshotDataUrl}
               className="w-full py-3 rounded-xl font-medium text-black bg-gradient-to-r from-cyan-400 to-cyan-500 hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {recharging ? (
@@ -357,6 +428,7 @@ export default function WalletPage() {
                       <th className="text-left text-neutral-400 text-sm font-medium p-4">时间</th>
                       <th className="text-left text-neutral-400 text-sm font-medium p-4">时长</th>
                       <th className="text-left text-neutral-400 text-sm font-medium p-4">金额</th>
+                      <th className="text-left text-neutral-400 text-sm font-medium p-4">截图</th>
                       <th className="text-left text-neutral-400 text-sm font-medium p-4">状态</th>
                       <th className="text-left text-neutral-400 text-sm font-medium p-4">操作</th>
                     </tr>
@@ -367,6 +439,18 @@ export default function WalletPage() {
                         <td className="p-4 text-neutral-400 text-sm">{formatDate(record.created_at)}</td>
                         <td className="p-4 text-white font-medium">{record.months} 个月</td>
                         <td className="p-4 text-white font-medium">{record.amount.toFixed(0)} USDT</td>
+                        <td className="p-4">
+                          {record.screenshot_url ? (
+                            <button
+                              onClick={() => setPreviewImage(record.screenshot_url)}
+                              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+                            >
+                              <ImageIcon size={14} /> 查看截图
+                            </button>
+                          ) : (
+                            <span className="text-xs text-neutral-500">无</span>
+                          )}
+                        </td>
                         <td className="p-4">{getStatusBadge(record.status)}</td>
                         <td className="p-4">
                           {record.status === 'pending' && (
@@ -394,6 +478,24 @@ export default function WalletPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 截图预览弹窗 */}
+        {previewImage && (
+          <div
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+            onClick={() => setPreviewImage(null)}
+          >
+            <div className="relative max-w-3xl w-full">
+              <img src={previewImage} alt="截图预览" className="w-full rounded-lg" />
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="absolute -top-10 right-0 p-2 text-white hover:text-neutral-300"
+              >
+                <X size={24} />
+              </button>
+            </div>
           </div>
         )}
       </div>

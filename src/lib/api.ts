@@ -86,7 +86,7 @@ export const api = {
   // 会员
   wallet: {
     get: () => apiRequest('/wallet/'),
-    recharge: (data: { months: number; method?: string }) =>
+    recharge: (data: { months: number; method?: string; screenshot_url?: string }) =>
       apiRequest('/wallet/recharge', { method: 'POST', body: JSON.stringify(data) }),
     recharges: (params?: { limit?: number; offset?: number }) => {
       const query = new URLSearchParams(params as Record<string, string>).toString();
