@@ -107,14 +107,6 @@ export const api = {
     },
   },
 
-  // 信号订阅
-  subscription: {
-    list: () => apiRequest('/subscriptions/'),
-    create: (data: any) => apiRequest('/subscriptions/', { method: 'POST', body: JSON.stringify(data) }),
-    delete: (id: number) => apiRequest(`/subscriptions/${id}`, { method: 'DELETE' }),
-    toggle: (id: number) => apiRequest(`/subscriptions/${id}/toggle`, { method: 'POST' }),
-  },
-
   // 邀请
   invite: {
     generate: () => apiRequest('/invite/generate', { method: 'POST' }),
