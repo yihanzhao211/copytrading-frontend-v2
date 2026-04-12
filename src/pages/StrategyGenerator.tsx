@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Brain, TrendingUp, Target, ShieldAlert, 
-  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History, Activity as ActivityIcon, ArrowUp, ArrowDown
+  DollarSign, Clock, Loader2, Activity, Lock, Zap, BarChart3, Layers, History, Activity as ActivityIcon, ArrowUp, ArrowDown, ScanSearch
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -134,6 +134,9 @@ export default function StrategyGenerator() {
   const [wickLoading, setWickLoading] = useState(false);
   const [wickResult, setWickResult] = useState<WickAnalysisData | null>(null);
   const [wickError, setWickError] = useState('');
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<any | null>(null);
+  const [scanError, setScanError] = useState('');
   const [membership, setMembership] = useState<MembershipInfo | null>(null);
 
   useEffect(() => {
@@ -210,6 +213,39 @@ export default function StrategyGenerator() {
       }
     } finally {
       setWickLoading(false);
+    }
+  };
+
+  const handleScan = async () => {
+    setScanLoading(true);
+    setScanError('');
+    try {
+      const res = await api.strategy.scan(timeframe);
+      setScanResult(res.data);
+      if (user && res.data.remaining_points !== undefined) {
+        login({ ...user, points: res.data.remaining_points });
+      }
+      // 更新 membership 的 daily_usage
+      setMembership(prev => prev ? {
+        ...prev,
+        daily_usage: {
+          ...prev.daily_usage,
+          strategy_generate: {
+            ...(prev.daily_usage?.strategy_generate || { used: 0, limit: 1, remaining: 0 }),
+            remaining: Math.max(0, (prev.daily_usage?.strategy_generate?.remaining || 0) - 1)
+          }
+        }
+      } : prev);
+    } catch (e: any) {
+      if (e.message?.includes('无效的认证令牌') || e.message?.includes('认证')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      } else {
+        setScanError(e.message || '批量扫描失败，请稍后重试');
+      }
+    } finally {
+      setScanLoading(false);
     }
   };
 
@@ -768,6 +804,89 @@ export default function StrategyGenerator() {
                           <p className="text-xs mt-1 opacity-70">基于近 1000 根 K 线数据，识别上下方潜在针型价位与概率</p>
                         </>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 批量扫描 */}
+                <div className="glass rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <ScanSearch className="w-6 h-6 text-cyan-400" />
+                      <h2 className="text-xl font-bold text-white">批量扫描</h2>
+                    </div>
+                    <button
+                      onClick={handleScan}
+                      disabled={scanLoading || (!membership?.is_member && (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0) || (user?.points ?? 0) < (membership?.is_member ? 0 : 10)}
+                      className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors flex items-center gap-2"
+                    >
+                      {scanLoading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> 扫描中...</>
+                      ) : membership?.is_member ? (
+                        <><ScanSearch className="w-4 h-4" /> 一键扫描（会员免费）</>
+                      ) : (membership?.daily_usage?.strategy_generate?.remaining ?? 0) <= 0 ? (
+                        <><Lock className="w-4 h-4" /> 今日次数已用完</>
+                      ) : (user?.points ?? 0) < 10 ? (
+                        <><DollarSign className="w-4 h-4" /> 积分不足</>
+                      ) : (
+                        <><ScanSearch className="w-4 h-4" /> 一键扫描（-10积分）</>
+                      )}
+                    </button>
+                  </div>
+
+                  {scanError && (
+                    <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      {scanError}
+                    </div>
+                  )}
+
+                  {scanResult ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between text-sm text-neutral-400">
+                        <span>扫描币种: {scanResult.scanned_count} 个</span>
+                        <span>周期: {scanResult.timeframe}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {scanResult.results.map((item: any, idx: number) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setSymbol(item.symbol);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className={`p-4 rounded-xl border cursor-pointer transition-colors ${
+                              item.has_signal
+                                ? 'bg-cyan-500/10 border-cyan-500/30 hover:bg-cyan-500/20'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-semibold text-white">{item.symbol}</div>
+                              {item.has_signal ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">
+                                  有信号
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-neutral-400">
+                                  观望
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-neutral-300">{item.summary}</div>
+                            {item.best_signal && (
+                              <div className="mt-2 text-xs text-neutral-500">
+                                策略: {STRATEGY_NAMES[item.best_signal.strategy] || item.best_signal.strategy}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-neutral-500">
+                      <ScanSearch className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                      <p>点击上方按钮，一键扫描市场机会</p>
+                      <p className="text-xs mt-1 opacity-70">自动分析 Top 20 币种，按信号强度排序</p>
                     </div>
                   )}
                 </div>

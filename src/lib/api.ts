@@ -81,6 +81,8 @@ export const api = {
       apiRequest('/strategy/backtest', { method: 'POST', body: JSON.stringify({ symbol, timeframe, days }) }),
     wickAnalysis: (symbol: string, timeframe: string) =>
       apiRequest('/strategy/wick-analysis', { method: 'POST', body: JSON.stringify({ symbol, timeframe }) }),
+    scan: (timeframe: string, symbols?: string[]) =>
+      apiRequest('/strategy/scan', { method: 'POST', body: JSON.stringify({ timeframe, symbols }) }),
   },
 
   // 会员
