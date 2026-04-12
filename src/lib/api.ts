@@ -96,6 +96,13 @@ export const api = {
       apiRequest(`/wallet/recharge/${id}/confirm`, { method: 'POST', body: JSON.stringify(data) }),
     cancel: (id: number) =>
       apiRequest(`/wallet/recharge/${id}/cancel`, { method: 'POST' }),
+    adminRecharges: (status?: string, limit?: number, offset?: number) => {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (limit !== undefined) params.append('limit', String(limit));
+      if (offset !== undefined) params.append('offset', String(offset));
+      return apiRequest(`/wallet/admin/recharges?${params.toString()}`);
+    },
   },
 
   // 邀请

@@ -9,17 +9,19 @@ import Community from './pages/Community';
 import StrategyGenerator from './pages/StrategyGenerator';
 import WalletPage from './pages/Wallet';
 import InvitePage from './pages/Invite';
+import AdminRecharges from './pages/AdminRecharges';
 
 gsap.registerPlugin(ScrollTrigger);
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
-  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy' | 'wallet' | 'invite'>(() => {
+  const [currentPage, setCurrentPage] = useState<'community' | 'dashboard' | 'strategy' | 'wallet' | 'invite' | 'admin-recharges'>(() => {
     const hash = window.location.hash;
     if (hash === '#dashboard') return 'dashboard';
     if (hash === '#strategy') return 'strategy';
     if (hash === '#wallet') return 'wallet';
     if (hash === '#invite') return 'invite';
+    if (hash === '#admin/recharges') return 'admin-recharges';
     return 'community';
   });
 
@@ -30,6 +32,7 @@ function AppContent() {
       else if (hash === '#strategy') setCurrentPage('strategy');
       else if (hash === '#wallet') setCurrentPage('wallet');
       else if (hash === '#invite') setCurrentPage('invite');
+      else if (hash === '#admin/recharges') setCurrentPage('admin-recharges');
       else setCurrentPage('community');
     };
 
@@ -61,6 +64,10 @@ function AppContent() {
 
   if (currentPage === 'invite') {
     return isAuthenticated ? <InvitePage /> : <Community />;
+  }
+
+  if (currentPage === 'admin-recharges') {
+    return isAuthenticated ? <AdminRecharges /> : <Community />;
   }
 
   return <Community />;
