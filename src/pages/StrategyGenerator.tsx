@@ -138,6 +138,11 @@ export default function StrategyGenerator() {
   const [scanResult, setScanResult] = useState<any | null>(null);
   const [scanError, setScanError] = useState('');
   const [membership, setMembership] = useState<MembershipInfo | null>(null);
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [newSubEmail, setNewSubEmail] = useState('');
+  const [newSubStrategy, setNewSubStrategy] = useState('');
+  const [subLoading, setSubLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -249,6 +254,58 @@ export default function StrategyGenerator() {
     }
   };
 
+  const fetchSubscriptions = async () => {
+    try {
+      const res = await api.subscription.list();
+      setSubscriptions(res.subscriptions || []);
+    } catch (e: any) {
+      console.error('获取订阅失败', e);
+    }
+  };
+
+  useEffect(() => {
+    if (subscriptionModalOpen) {
+      fetchSubscriptions();
+      if (user?.email) setNewSubEmail(user.email);
+    }
+  }, [subscriptionModalOpen]);
+
+  const handleAddSubscription = async () => {
+    if (!newSubEmail) return;
+    setSubLoading(true);
+    try {
+      await api.subscription.create({
+        symbol,
+        timeframe,
+        strategy: newSubStrategy || undefined,
+        email: newSubEmail,
+      });
+      await fetchSubscriptions();
+    } catch (e: any) {
+      alert(e.message || '订阅失败');
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  const handleToggleSubscription = async (id: number) => {
+    try {
+      await api.subscription.toggle(id);
+      await fetchSubscriptions();
+    } catch (e: any) {
+      alert(e.message || '操作失败');
+    }
+  };
+
+  const handleDeleteSubscription = async (id: number) => {
+    try {
+      await api.subscription.delete(id);
+      await fetchSubscriptions();
+    } catch (e: any) {
+      alert(e.message || '取消失败');
+    }
+  };
+
   const getDirectionLabel = (dir?: string) => {
     if (dir === 'long') return { text: '做多', color: 'text-green-400 bg-green-400/10 border-green-400/20' };
     if (dir === 'short') return { text: '做空', color: 'text-red-400 bg-red-400/10 border-red-400/20' };
@@ -357,6 +414,12 @@ export default function StrategyGenerator() {
                       今日剩余: {membership.daily_usage.strategy_generate.remaining} 次
                     </div>
                   )}
+                  <button
+                    onClick={() => setSubscriptionModalOpen(true)}
+                    className="text-sm px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-neutral-300 font-medium transition-colors"
+                  >
+                    订阅管理
+                  </button>
                   <div className="text-sm px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
                     我的积分: {user?.points ?? 0}
                   </div>
@@ -895,6 +958,100 @@ export default function StrategyGenerator() {
           </>
         )}
       </div>
+
+      {/* 订阅管理 Modal */}
+      {subscriptionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-neutral-900 border border-white/10 p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <ScanSearch className="w-5 h-5 text-cyan-400" />
+                信号订阅管理
+              </h3>
+              <button
+                onClick={() => setSubscriptionModalOpen(false)}
+                className="text-neutral-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-neutral-300 mb-3">我的订阅</h4>
+              {subscriptions.length === 0 ? (
+                <p className="text-sm text-neutral-500">暂无订阅，请在下方添加</p>
+              ) : (
+                <div className="space-y-2">
+                  {subscriptions.map((sub) => (
+                    <div key={sub.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div>
+                        <div className="font-medium text-white text-sm">{sub.symbol} · {sub.timeframe}</div>
+                        <div className="text-xs text-neutral-400">
+                          {sub.strategy ? STRATEGY_NAMES[sub.strategy] || sub.strategy : '所有策略'} · {sub.email}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleSubscription(sub.id)}
+                          className={`px-2 py-1 rounded text-xs font-medium ${sub.is_active ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-400'}`}
+                        >
+                          {sub.is_active ? '已启用' : '已暂停'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSubscription(sub.id)}
+                          className="px-2 py-1 rounded text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <h4 className="text-sm font-medium text-neutral-300 mb-3">添加新订阅</h4>
+              <div className="space-y-3">
+                <div className="text-sm text-neutral-400">
+                  币种: <span className="text-white font-medium">{symbol}</span> · 周期: <span className="text-white font-medium">{timeframe}</span>
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">策略类型</label>
+                  <select
+                    value={newSubStrategy}
+                    onChange={(e) => setNewSubStrategy(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="">所有策略</option>
+                    <option value="triple_resonance">三重共振</option>
+                    <option value="momentum">动量策略</option>
+                    <option value="breakout">突破策略</option>
+                    <option value="mean_reversion">均值回归</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">接收邮箱</label>
+                  <input
+                    type="email"
+                    value={newSubEmail}
+                    onChange={(e) => setNewSubEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <button
+                  onClick={handleAddSubscription}
+                  disabled={subLoading || !newSubEmail}
+                  className="w-full py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/30 disabled:cursor-not-allowed text-black font-semibold text-sm transition-colors"
+                >
+                  {subLoading ? '添加中...' : '添加订阅'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
